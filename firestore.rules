@@ -65,6 +65,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /claimEvents/{eventId} {
+      allow read: if hasPermission("claim.read");
+      allow create: if hasPermission("claim.update") || hasPermission("claim.reserve") || hasPermission("claim.decide") || hasPermission("claim.settle") || hasPermission("claim.close");
+      allow update, delete: if false;
+    }
+
+    match /claimEvidence/{evidenceId} {
+      allow read: if hasPermission("claim.read") || hasPermission("siu.read");
+      allow create, update: if hasPermission("claim.evidence") || hasPermission("siu.manage");
+      allow delete: if false;
+    }
+
     match /auditLogs/{logId} {
       allow read: if hasPermission("audit.read");
       allow write: if false;
