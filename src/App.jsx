@@ -11,7 +11,7 @@ import Policies from "./pages/Policies";
 import Claims from "./pages/Claims";
 import SIU from "./pages/SIU";
 
-const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
+const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
 
 function Login({onBootstrap}){
   const [email,setEmail]=useState(""); const [password,setPassword]=useState("");
