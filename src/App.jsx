@@ -6,6 +6,8 @@ import {auth,db} from "./firebase";
 import Bootstrap from "./pages/Bootstrap";
 import Dashboard from "./pages/Dashboard";
 import Customers from "./pages/Customers";
+import QuotesApplications from "./pages/QuotesApplications";
+import Policies from "./pages/Policies";
 
 const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
 
@@ -55,14 +57,16 @@ export default function App(){
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
       <div className="sidebar-brand"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div><button className="mobile-close" onClick={()=>setMobileOpen(false)}><X size={20}/></button></div>
-      <nav>{nav.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>{setPage(name);setMobileOpen(false)}}><Icon size={18}/><span>{name}</span>{!["Dashboard","Customers"].includes(name)&&<span className="soon">SOON</span>}</button>)}</nav>
+      <nav>{nav.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>{setPage(name);setMobileOpen(false)}}><Icon size={18}/><span>{name}</span>{["Claims","Billing","Company"].includes(name)&&<span className="soon">SOON</span>}</button>)}</nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
       <header className="topbar"><button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><div className="search"><Search size={17}/><input placeholder="Search customers, policies, claims…"/></div><div className="environment"><span></span> LIVE OPERATIONS</div></header>
       {page==="Dashboard"&&<Dashboard staff={staff}/>}
       {page==="Customers"&&<Customers staff={staff}/>}
-      {!["Dashboard","Customers"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">PART 1 FOUNDATION</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {page==="Quotes & Applications"&&<QuotesApplications staff={staff}/>}
+      {page==="Policies"&&<Policies staff={staff}/>}
+      {!["Dashboard","Customers","Quotes & Applications","Policies"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
