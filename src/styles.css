@@ -18,3 +18,6 @@ select,textarea{font:inherit;border:1px solid #ccd3cf;border-radius:10px;padding
 @media(max-width:900px){.finance-summary{grid-template-columns:1fr 1fr}.analytics-grid,.documents-grid{grid-template-columns:1fr 1fr}.staff-row{grid-template-columns:40px 1fr auto}.staff-row>button{grid-column:2/4;width:max-content}.audit-row{grid-template-columns:12px 1fr}.audit-row code{grid-column:2}}
 @media(max-width:560px){.finance-summary,.analytics-grid,.documents-grid{grid-template-columns:1fr}.finance-total{grid-column:auto}.staff-row{grid-template-columns:36px 1fr}.staff-row>.status-pill,.staff-row>button{grid-column:2}.document-card{grid-template-columns:28px 1fr}.document-card button{grid-column:2;width:max-content}}
 @media print{.sidebar,.topbar,.page-heading,.company-tabs,.modal-actions,.secondary,.primary{display:none!important}.main{grid-column:1}.content{padding:0}.document-card{break-inside:avoid}}
+
+.staff-admin-row{grid-template-columns:40px minmax(220px,1fr) minmax(190px,.7fr) 140px}.staff-admin-row select{padding:9px 10px;font-size:12px}.status-pill.suspended{background:#fff0d8;color:#8c5e18}.status-pill.terminated{background:#f4dfdf;color:#8c3e3e}
+@media(max-width:900px){.staff-admin-row{grid-template-columns:40px 1fr}.staff-admin-row select{grid-column:2;width:100%}}
