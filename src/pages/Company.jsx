@@ -1,8 +1,8 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,getDocs,serverTimestamp} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
 import {Activity,BarChart3,Building2,FileText,Landmark,Users} from "lucide-react";
 import {db} from "../firebase";
-import {can,PERMISSIONS} from "../permissions";
+import {can,PERMISSIONS,ROLE_PRESETS} from "../permissions";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 
@@ -57,7 +57,7 @@ export default function Company({staff}){
 
     {tab==="finance"&&<Finance metrics={metrics} policies={policies} claims={claims}/>}
     {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx}/>}
-    {tab==="staff"&&<Staff staffList={staffList} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} logAdmin={logAdmin}/>}
+    {tab==="staff"&&<Staff staffList={staffList} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
     {tab==="audit"&&<Audit audit={audit}/>}
     {tab==="documents"&&<Documents policies={policies}/>}
   </section>
@@ -97,8 +97,45 @@ function Analytics({policies,claims,tx}){
   </div>
 }
 
-function Staff({staffList,canManage,logAdmin}){
-  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Staff directory</strong><span>{staffList.length} employees</span></div><div className="staff-list">{staffList.map(s=><div className="staff-row" key={s.id}><div className="avatar">{s.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><strong>{s.displayName}</strong><span>{s.employeeId||"No employee ID"} • {s.title||s.role}</span></div><span className={"status-pill "+s.status}>{s.status}</span><button className="secondary compact" disabled={!canManage} onClick={()=>logAdmin("Staff record reviewed",{staffId:s.id})}>Review</button></div>)}</div></div><div className="notice-box">Employee account creation and role changes remain security-sensitive administrative actions. The directory and permission framework are ready for a server-side staff provisioning workflow.</div></div>
+function Staff({staffList,canManage,logAdmin,reload,currentStaff}){
+  async function setRole(s,role){
+    const preset=ROLE_PRESETS[role];
+    if(!preset)return;
+    await updateDoc(doc(db,"staff",s.id),{
+      role,
+      title:preset.label,
+      department:preset.department,
+      permissions:preset.permissions,
+      updatedAt:serverTimestamp(),
+      updatedBy:currentStaff.id
+    });
+    await logAdmin("Staff role updated",{staffId:s.id,role});
+    await reload();
+  }
+  async function setStatus(s,status){
+    await updateDoc(doc(db,"staff",s.id),{
+      status,
+      updatedAt:serverTimestamp(),
+      updatedBy:currentStaff.id
+    });
+    await logAdmin("Staff status updated",{staffId:s.id,status});
+    await reload();
+  }
+  return <div className="company-section">
+    <div className="table-card"><div className="table-toolbar"><strong>Staff directory</strong><span>{staffList.length} employees</span></div>
+      <div className="staff-list">{staffList.map(s=><div className="staff-row staff-admin-row" key={s.id}>
+        <div className="avatar">{s.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")}</div>
+        <div><strong>{s.displayName}</strong><span>{s.employeeId||"No employee ID"} • {s.title||s.role}</span></div>
+        <select value={s.role||""} disabled={!canManage||s.role==="founder"} onChange={e=>setRole(s,e.target.value)}>
+          {Object.entries(ROLE_PRESETS).map(([key,p])=><option key={key} value={key}>{p.label}</option>)}
+        </select>
+        <select value={s.status||"active"} disabled={!canManage||s.role==="founder"} onChange={e=>setStatus(s,e.target.value)}>
+          <option value="active">Active</option><option value="suspended">Suspended</option><option value="terminated">Terminated</option>
+        </select>
+      </div>)}</div>
+    </div>
+    <div className="notice-box">Role changes update the employee's capability list immediately. The Founder account is protected from role or status changes in this interface.</div>
+  </div>
 }
 
 function Audit({audit}){
