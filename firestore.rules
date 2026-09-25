@@ -10,7 +10,7 @@ service cloud.firestore {
     }
     function hasPermission(permission){
       return isActiveStaff()
-        && (request.auth.token.systemOwner == true || permission in staffDoc().data.permissions);
+        && ("*" in staffDoc().data.permissions || permission in staffDoc().data.permissions);
     }
     function ownsCustomer(customerId){
       return signedIn()
@@ -19,7 +19,7 @@ service cloud.firestore {
     }
 
     match /system/{docId} {
-      allow read: if isActiveStaff() && request.auth.token.systemOwner == true;
+      allow read: if hasPermission("system.read");
       allow write: if false;
     }
 
