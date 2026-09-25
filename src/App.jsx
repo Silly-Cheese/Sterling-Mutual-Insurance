@@ -70,7 +70,7 @@ export default function App(){
       {page==="Policies"&&<Policies staff={staff}/>}
       {page==="Claims"&&<Claims staff={staff}/>}
       {page==="SIU"&&<SIU staff={staff}/>}
-      {!["Dashboard","Customers","Quotes & Applications","Policies"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","Customers","Quotes & Applications","Policies","Claims","SIU"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
