@@ -25,7 +25,11 @@ service cloud.firestore {
 
     match /staff/{uid} {
       allow read: if isActiveStaff() && (request.auth.uid == uid || hasPermission("staff.read"));
-      allow create, update: if hasPermission("staff.manage");
+      allow create: if hasPermission("staff.manage")
+                    && request.resource.data.role != "founder";
+      allow update: if hasPermission("staff.manage")
+                    && resource.data.role != "founder"
+                    && request.resource.data.role != "founder";
       allow delete: if false;
     }
 
