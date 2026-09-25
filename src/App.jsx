@@ -9,6 +9,7 @@ import Customers from "./pages/Customers";
 import QuotesApplications from "./pages/QuotesApplications";
 import Policies from "./pages/Policies";
 import Claims from "./pages/Claims";
+import SIU from "./pages/SIU";
 
 const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
 
