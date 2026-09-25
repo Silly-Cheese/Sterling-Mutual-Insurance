@@ -168,3 +168,42 @@ firebase deploy --only firestore:rules
 ```
 
 No composite Firestore indexes are required by the Part 2 implementation.
+
+
+## Part 3 of 4 — Claims & Special Investigations
+
+Part 3 adds:
+- staff-filed claims for customers,
+- first notice of loss intake,
+- claim status and coverage decisions,
+- claim reserves,
+- settlement recording,
+- claim closure,
+- claim event history storage,
+- evidence data model,
+- SIU referral authority,
+- SIU investigation queue,
+- investigation risk scoring and notes,
+- investigation outcomes.
+
+### Part 3 permissions
+- `claim.read`
+- `claim.createForCustomer`
+- `claim.update`
+- `claim.assign`
+- `claim.reserve`
+- `claim.decide`
+- `claim.settle`
+- `claim.close`
+- `claim.evidence`
+- `siu.read`
+- `siu.refer`
+- `siu.manage`
+
+Deploy the updated rules after pulling:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+No composite indexes are required.
