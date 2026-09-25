@@ -9,19 +9,22 @@ const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",ma
 export default function Company({staff}){
   const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[audit,setAudit]=useState([]),[tab,setTab]=useState("finance");
 
+  async function safeDocs(name){
+    try{
+      const snap=await getDocs(collection(db,name));
+      return snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch{return []}
+  }
+
   async function load(){
     const [p,c,t,s,a]=await Promise.all([
-      getDocs(collection(db,"policies")),
-      getDocs(collection(db,"claims")),
-      getDocs(collection(db,"billingTransactions")),
-      getDocs(collection(db,"staff")),
-      getDocs(collection(db,"auditLogs"))
+      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("auditLogs")
     ]);
-    setPolicies(p.docs.map(d=>({id:d.id,...d.data()})));
-    setClaims(c.docs.map(d=>({id:d.id,...d.data()})));
-    setTx(t.docs.map(d=>({id:d.id,...d.data()})));
-    setStaffList(s.docs.map(d=>({id:d.id,...d.data()})));
-    setAudit(a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
+    setPolicies(p);
+    setClaims(c);
+    setTx(t);
+    setStaffList(s);
+    setAudit(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
 
