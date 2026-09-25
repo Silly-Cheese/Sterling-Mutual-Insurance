@@ -20,8 +20,7 @@ service cloud.firestore {
 
     match /system/{docId} {
       allow read: if isActiveStaff() && request.auth.token.systemOwner == true;
-      allow create: if hasPermission("admin.manage");
-      allow update, delete: if false;
+      allow write: if false;
     }
 
     match /staff/{uid} {
@@ -47,9 +46,15 @@ service cloud.firestore {
     }
 
     match /policies/{policyId} {
-      allow read: if hasPermission("policy.read");
+      allow read: if hasPermission("policy.read") || hasPermission("billing.read") || hasPermission("finance.read");
       allow create: if hasPermission("policy.issue");
-      allow update: if hasPermission("policy.update");
+      allow update: if hasPermission("policy.update")
+        || (
+          hasPermission("billing.manage")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "billingStatus","lastPaymentAmount","lastPaymentAt","billingUpdatedBy","updatedAt"
+          ])
+        );
       allow delete: if false;
     }
 
@@ -106,7 +111,8 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if hasPermission("audit.read");
-      allow write: if false;
+      allow create: if hasPermission("admin.manage");
+      allow update, delete: if false;
     }
 
     match /{document=**} { allow read, write: if false; }
