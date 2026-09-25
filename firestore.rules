@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function staffDoc(){ return get(/databases/$(database)/documents/staff/$(request.auth.uid)); }
+    function isActiveStaff(){
+      return signedIn()
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        && staffDoc().data.status == "active";
+    }
+    function hasPermission(permission){
+      return isActiveStaff()
+        && (request.auth.token.systemOwner == true || permission in staffDoc().data.permissions);
+    }
+    function ownsCustomer(customerId){
+      return signedIn()
+        && exists(/databases/$(database)/documents/customers/$(customerId))
+        && get(/databases/$(database)/documents/customers/$(customerId)).data.authUid == request.auth.uid;
+    }
+
+    match /system/{docId} {
+      allow read: if isActiveStaff() && request.auth.token.systemOwner == true;
+      allow write: if false;
+    }
+    match /staff/{uid} {
+      allow read: if isActiveStaff() && (request.auth.uid == uid || hasPermission("staff.read"));
+      allow create, update: if hasPermission("staff.manage");
+      allow delete: if false;
+    }
+    match /customers/{customerId} {
+      allow read: if hasPermission("customer.read") || ownsCustomer(customerId);
+      allow create: if hasPermission("customer.create");
+      allow update: if hasPermission("customer.update");
+      allow delete: if false;
+    }
+    match /auditLogs/{logId} {
+      allow read: if hasPermission("audit.read");
+      allow write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
