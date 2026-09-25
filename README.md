@@ -207,3 +207,96 @@ firebase deploy --only firestore:rules
 ```
 
 No composite indexes are required.
+
+
+## Part 4 of 4 — Billing, Finance, Administration & Final Operations
+
+Part 4 completes the main Sterling Mutual operations platform.
+
+### Billing
+The Billing workspace now supports:
+- policy billing accounts,
+- premium payments,
+- charges,
+- credits,
+- refunds,
+- account balances,
+- current / late / grace-period / cancellation-pending statuses,
+- transaction notes,
+- employee attribution.
+
+### Company Finance
+The Company workspace now calculates RP operating metrics from internal records:
+- written premium,
+- premium collected,
+- refunded premium,
+- claims paid,
+- outstanding claim reserves,
+- available operating capital,
+- paid loss ratio.
+
+These figures are for the RP system and are not statutory insurance accounting.
+
+### Analytics
+The Company area includes operating indicators for:
+- active/cancelled policy mix,
+- open/settled claim mix,
+- billing activity.
+
+### Staff Administration
+Authorized administrators can:
+- review the staff directory,
+- change staff roles using role presets,
+- suspend employees,
+- terminate employees,
+- restore active status,
+- update capability sets.
+
+The Founder record is protected by Firestore Rules from client-side role/status modification and other employees cannot be elevated into the Founder role.
+
+### Audit Center
+The system includes an audit center for protected administrative event records.
+
+### Document Center
+Part 4 adds print-ready document groundwork for:
+- policy declarations,
+- insurance cards,
+- billing receipts,
+- cancellation notices,
+- renewal notices,
+- settlement letters.
+
+The current document center is RP output groundwork and does not generate real legal insurance contracts.
+
+### Live Executive Dashboard
+The dashboard now reads real Firestore data for:
+- customers,
+- active underwriting items,
+- policies in force,
+- open claims,
+- outstanding reserves,
+- priority operations queue.
+
+### Part 4 permissions
+- `billing.read`
+- `billing.manage`
+- `finance.read`
+- `finance.manage`
+- `document.read`
+- `document.manage`
+- `admin.read`
+- `admin.manage`
+
+## Final deployment
+
+After pulling the completed four-part build:
+
+```bash
+npm install
+npm run build
+firebase deploy --only firestore:rules,functions,hosting
+```
+
+If hosting is deployed elsewhere, deploy the Vite `dist` output through that provider after `npm run build`.
+
+No composite Firestore indexes are required by the current four-part implementation.
