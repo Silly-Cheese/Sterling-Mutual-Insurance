@@ -42,8 +42,11 @@ function Login({onBootstrap}){
 }
 
 export default function App(){
+  const appBase=import.meta.env.BASE_URL || "/";
+  const homePath=appBase.endsWith("/")?appBase:appBase+"/";
+  const bootstrapPath=homePath+"bootstrap";
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[loading,setLoading]=useState(true);
-  const [bootstrap,setBootstrap]=useState(location.pathname==="/bootstrap"),[page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
+  const [bootstrap,setBootstrap]=useState(location.pathname.endsWith("/bootstrap")),[page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
 
   useEffect(()=>onAuthStateChanged(auth,async u=>{
     setUser(u); setStaff(null);
@@ -54,8 +57,8 @@ export default function App(){
   const initials=useMemo(()=>staff?.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")||"SM",[staff]);
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
-  if(bootstrap&&!user)return <Bootstrap onBack={()=>{history.replaceState(null,"","/");setBootstrap(false)}}/>;
-  if(!user)return <Login onBootstrap={()=>{history.replaceState(null,"","/bootstrap");setBootstrap(true)}}/>;
+  if(bootstrap&&!user)return <Bootstrap onBack={()=>{history.replaceState(null,"",homePath);setBootstrap(false)}} homePath={homePath}/>;
+  if(!user)return <Login onBootstrap={()=>{history.replaceState(null,"",bootstrapPath);setBootstrap(true)}}/>;
   if(!staff)return <div className="auth-shell"><div className="auth-card"><h1>Access pending</h1><p>Your authentication account exists, but no active Sterling Mutual staff profile is attached to it.</p><button className="primary" onClick={()=>signOut(auth)}>Sign out</button></div></div>;
 
   return <div className="app-shell">
