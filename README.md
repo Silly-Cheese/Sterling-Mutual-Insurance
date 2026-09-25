@@ -97,3 +97,74 @@ You never need to find or enter a Firebase UID.
 ## Security note
 
 Never place the bootstrap code, service-account keys, or other server credentials in browser source, `.env.example`, or GitHub.
+
+
+## Part 2 of 4 — Insurance Engine
+
+Part 2 adds the first complete insurance lifecycle:
+
+```
+Customer
+   ↓
+Quote
+   ↓
+Application submitted
+   ↓
+Underwriting review
+   ↓
+Approved / information requested
+   ↓
+Policy issuance
+   ↓
+Insured vehicle/property record
+```
+
+### Quote builder
+Agents can:
+- select an existing customer,
+- choose Auto, Home/Property, or Commercial,
+- identify the insured asset,
+- select deductible and coverage limits,
+- record underwriting/risk notes,
+- calculate an RP monthly and six-month premium,
+- save a draft,
+- submit it to underwriting.
+
+### Underwriting
+Authorized underwriters can:
+- view submitted applications,
+- request additional information,
+- approve applications,
+- return applications to the agent for resubmission.
+
+### Policy administration
+Authorized staff can:
+- bind approved applications,
+- generate a Sterling Mutual policy number,
+- create the insured-asset record,
+- establish effective and expiration dates,
+- view premiums, deductibles, limits, and insured property,
+- cancel and reinstate policies.
+
+### Part 2 permission capabilities
+- `quote.read`
+- `quote.create`
+- `quote.update`
+- `quote.submit`
+- `underwriting.review`
+- `policy.read`
+- `policy.issue`
+- `policy.update`
+- `asset.manage`
+
+The Founder/System Owner continues to bypass individual capability checks through the existing system-owner claim.
+
+### Deploy Part 2 rules
+
+After pulling Part 2, redeploy Firestore rules:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+No composite Firestore indexes are required by the Part 2 implementation.
