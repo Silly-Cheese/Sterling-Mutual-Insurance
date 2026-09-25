@@ -14,8 +14,22 @@ function sameSecret(a,b){
 }
 
 exports.bootstrap=onRequest(
-  {region:"us-central1",secrets:[BOOTSTRAP_SECRET],cors:true},
+  {region:"us-central1",secrets:[BOOTSTRAP_SECRET]},
   async(req,res)=>{
+    const origin=req.headers.origin || "";
+    const allowedOrigins=new Set([
+      "https://silly-cheese.github.io",
+      "http://localhost:5173"
+    ]);
+
+    if(allowedOrigins.has(origin)){
+      res.set("Access-Control-Allow-Origin",origin);
+    }
+    res.set("Vary","Origin");
+    res.set("Access-Control-Allow-Methods","POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers","Content-Type");
+
+    if(req.method==="OPTIONS") return res.status(204).send("");
     if(req.method!=="POST")return res.status(405).json({error:"Method not allowed."});
     const {code,displayName,email,password}=req.body||{};
     if(!sameSecret(code,BOOTSTRAP_SECRET.value()))return res.status(403).json({error:"Invalid bootstrap credential."});
