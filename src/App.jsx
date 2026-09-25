@@ -59,7 +59,7 @@ export default function App(){
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
       <div className="sidebar-brand"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div><button className="mobile-close" onClick={()=>setMobileOpen(false)}><X size={20}/></button></div>
-      <nav>{nav.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>{setPage(name);setMobileOpen(false)}}><Icon size={18}/><span>{name}</span>{["Claims","Billing","Company"].includes(name)&&<span className="soon">SOON</span>}</button>)}</nav>
+      <nav>{nav.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>{setPage(name);setMobileOpen(false)}}><Icon size={18}/><span>{name}</span>{["Billing","Company"].includes(name)&&<span className="soon">SOON</span>}</button>)}</nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
