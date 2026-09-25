@@ -25,7 +25,15 @@ export const PERMISSIONS={
   EVIDENCE_MANAGE:"claim.evidence",
   SIU_READ:"siu.read",
   SIU_REFER:"siu.refer",
-  SIU_MANAGE:"siu.manage"
+  SIU_MANAGE:"siu.manage",
+  BILLING_READ:"billing.read",
+  BILLING_MANAGE:"billing.manage",
+  FINANCE_READ:"finance.read",
+  FINANCE_MANAGE:"finance.manage",
+  DOCUMENT_READ:"document.read",
+  DOCUMENT_MANAGE:"document.manage",
+  ADMIN_READ:"admin.read",
+  ADMIN_MANAGE:"admin.manage"
 };
 
 export const ROLE_PRESETS={
@@ -53,6 +61,15 @@ export const ROLE_PRESETS={
   siuInvestigator:{label:"SIU Investigator",department:"Special Investigations",permissions:[
     PERMISSIONS.CUSTOMER_READ,PERMISSIONS.POLICY_READ,PERMISSIONS.CLAIM_READ,
     PERMISSIONS.SIU_READ,PERMISSIONS.SIU_MANAGE,PERMISSIONS.EVIDENCE_MANAGE
+  ]},
+  billingSpecialist:{label:"Billing Specialist",department:"Billing",permissions:[
+    PERMISSIONS.CUSTOMER_READ,PERMISSIONS.POLICY_READ,PERMISSIONS.BILLING_READ,PERMISSIONS.BILLING_MANAGE
+  ]},
+  financeManager:{label:"Finance Manager",department:"Finance",permissions:[
+    PERMISSIONS.BILLING_READ,PERMISSIONS.FINANCE_READ,PERMISSIONS.FINANCE_MANAGE,PERMISSIONS.CLAIM_READ,PERMISSIONS.POLICY_READ
+  ]},
+  administrator:{label:"System Administrator",department:"Administration",permissions:[
+    PERMISSIONS.STAFF_READ,PERMISSIONS.STAFF_MANAGE,PERMISSIONS.AUDIT_READ,PERMISSIONS.ADMIN_READ,PERMISSIONS.ADMIN_MANAGE
   ]}
 };
 
