@@ -10,7 +10,8 @@ export default function Bootstrap({onBack,homePath}){
   async function submit(e){
     e.preventDefault(); setStatus("loading"); setMessage("");
     try{
-      const endpoint=import.meta.env.VITE_BOOTSTRAP_ENDPOINT || "https://us-central1-sterling-mutual-insurance.cloudfunctions.net/bootstrap";
+      const endpoint=import.meta.env.VITE_BOOTSTRAP_ENDPOINT;
+      if(!endpoint) throw new Error("Bootstrap service is not configured.");
       const res=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});
       const data=await res.json();
       if(!res.ok)throw new Error(data.error||"Bootstrap failed.");
