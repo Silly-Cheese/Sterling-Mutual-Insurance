@@ -3,12 +3,12 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyCElkgTv9krB-cFleFV5ySuS_F45cVqao0",
+  authDomain: "sterling-mutual-insurance.firebaseapp.com",
+  projectId: "sterling-mutual-insurance",
+  storageBucket: "sterling-mutual-insurance.firebasestorage.app",
+  messagingSenderId: "863681721493",
+  appId: "1:863681721493:web:fbe3ee5909599f146d179c"
 };
 
 export const app = initializeApp(firebaseConfig);
