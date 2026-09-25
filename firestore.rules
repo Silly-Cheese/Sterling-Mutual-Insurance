@@ -20,7 +20,8 @@ service cloud.firestore {
 
     match /system/{docId} {
       allow read: if isActiveStaff() && request.auth.token.systemOwner == true;
-      allow write: if false;
+      allow create: if hasPermission("admin.manage");
+      allow update, delete: if false;
     }
 
     match /staff/{uid} {
@@ -81,6 +82,25 @@ service cloud.firestore {
       allow read: if hasPermission("siu.read");
       allow create: if hasPermission("siu.refer") || hasPermission("siu.manage");
       allow update: if hasPermission("siu.manage");
+      allow delete: if false;
+    }
+
+    match /billingTransactions/{transactionId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read");
+      allow create: if hasPermission("billing.manage");
+      allow update: if hasPermission("billing.manage");
+      allow delete: if false;
+    }
+
+    match /companyLedger/{entryId} {
+      allow read: if hasPermission("finance.read");
+      allow create, update: if hasPermission("finance.manage");
+      allow delete: if false;
+    }
+
+    match /documents/{documentId} {
+      allow read: if hasPermission("document.read") || hasPermission("policy.read");
+      allow create, update: if hasPermission("document.manage");
       allow delete: if false;
     }
 
