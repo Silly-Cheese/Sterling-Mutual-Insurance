@@ -22,21 +22,47 @@ service cloud.firestore {
       allow read: if isActiveStaff() && request.auth.token.systemOwner == true;
       allow write: if false;
     }
+
     match /staff/{uid} {
       allow read: if isActiveStaff() && (request.auth.uid == uid || hasPermission("staff.read"));
       allow create, update: if hasPermission("staff.manage");
       allow delete: if false;
     }
+
     match /customers/{customerId} {
       allow read: if hasPermission("customer.read") || ownsCustomer(customerId);
       allow create: if hasPermission("customer.create");
       allow update: if hasPermission("customer.update");
       allow delete: if false;
     }
+
+    match /quotes/{quoteId} {
+      allow read: if hasPermission("quote.read");
+      allow create: if hasPermission("quote.create");
+      allow update: if hasPermission("quote.update")
+                    || hasPermission("quote.submit")
+                    || hasPermission("underwriting.review");
+      allow delete: if false;
+    }
+
+    match /policies/{policyId} {
+      allow read: if hasPermission("policy.read");
+      allow create: if hasPermission("policy.issue");
+      allow update: if hasPermission("policy.update");
+      allow delete: if false;
+    }
+
+    match /insuredAssets/{assetId} {
+      allow read: if hasPermission("policy.read") || hasPermission("customer.read");
+      allow create, update: if hasPermission("asset.manage") || hasPermission("policy.update");
+      allow delete: if false;
+    }
+
     match /auditLogs/{logId} {
       allow read: if hasPermission("audit.read");
       allow write: if false;
     }
+
     match /{document=**} { allow read, write: if false; }
   }
 }
