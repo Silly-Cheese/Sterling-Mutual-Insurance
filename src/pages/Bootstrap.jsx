@@ -3,7 +3,7 @@ import {Building2,CheckCircle2,KeyRound,ShieldCheck} from "lucide-react";
 import {signInWithEmailAndPassword} from "firebase/auth";
 import {auth} from "../firebase";
 
-export default function Bootstrap({onBack}){
+export default function Bootstrap({onBack,homePath}){
   const [form,setForm]=useState({code:"",displayName:"",email:"",password:""});
   const [status,setStatus]=useState("idle"),[message,setMessage]=useState("");
   const update=k=>e=>setForm(v=>({...v,[k]:e.target.value}));
@@ -16,7 +16,7 @@ export default function Bootstrap({onBack}){
       if(!res.ok)throw new Error(data.error||"Bootstrap failed.");
       setStatus("success"); setMessage("Sterling Mutual has been initialized. Signing you in…");
       await signInWithEmailAndPassword(auth,form.email,form.password);
-      history.replaceState(null,"","/");
+      history.replaceState(null,"",homePath||import.meta.env.BASE_URL||"/");
     }catch(err){setStatus("error");setMessage(err.message)}
   }
   if(status==="success")return <div className="auth-shell"><div className="auth-card centered"><CheckCircle2 size={44}/><div className="eyebrow">INITIALIZATION COMPLETE</div><h1>Sterling Mutual is live.</h1><p>{message}</p></div></div>;
