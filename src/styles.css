@@ -21,3 +21,5 @@ select,textarea{font:inherit;border:1px solid #ccd3cf;border-radius:10px;padding
 
 .staff-admin-row{grid-template-columns:40px minmax(220px,1fr) minmax(190px,.7fr) 140px}.staff-admin-row select{padding:9px 10px;font-size:12px}.status-pill.suspended{background:#fff0d8;color:#8c5e18}.status-pill.terminated{background:#f4dfdf;color:#8c3e3e}
 @media(max-width:900px){.staff-admin-row{grid-template-columns:40px 1fr}.staff-admin-row select{grid-column:2;width:100%}}
+
+.dashboard-queue{display:grid;margin-top:12px}.dashboard-queue>div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #e5e9e6}.dashboard-queue strong,.dashboard-queue small{display:block}.dashboard-queue small{color:#83908c;margin-top:3px}.queue-type{font-size:9px;font-weight:800;letter-spacing:.08em;background:#e7eeea;color:#315f53;border-radius:6px;padding:5px 7px}
