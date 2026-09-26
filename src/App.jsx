@@ -179,6 +179,7 @@ export default function App(){
       </nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
+    {mobileOpen&&<button className="sidebar-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)}></button>}
     <main className="main">
       <header className="topbar">
         <button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button>
@@ -203,6 +204,7 @@ export default function App(){
         </div>
         <div className="environment"><span></span> LIVE</div>
       </header>
+      <div className="page-stage" key={page}>
       {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}      {page==="My Work"&&<MyWork staff={staff} onNavigate={navigate}/>}      {page==="Appointments"&&<Appointments staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}      {page==="Customer Workspace"&&<CustomerWorkspace staff={staff} customerId={pageContext?.customerId} onNavigate={navigate}/>}
@@ -212,7 +214,8 @@ export default function App(){
       {page==="SIU"&&<SIU staff={staff} onNavigate={navigate}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff} onNavigate={navigate}/>}
-      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING SOON</div><h1>{page}</h1><p>This workspace is reserved for a future Sterling Mutual module.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions, and layout are already in place.</p></div></section>}
+      </div>
     </main>
   </div>
 }
