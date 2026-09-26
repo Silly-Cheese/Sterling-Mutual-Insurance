@@ -32,11 +32,17 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
     try{
       const customer=customerMap[form.customerId],premium=calculatedPremium(form);
       await addDoc(collection(db,"quotes"),{...form,quoteNumber:quoteNo(),customerName:customer?.displayName||"Unknown customer",monthlyPremium:premium,sixMonthPremium:premium*6,status:"draft",underwritingLevel:"unreviewed",applicationChecklist:{customerInfo:true,assetInfo:Boolean(form.assetDescription),lossHistory:false,documents:false,paymentSelection:false},createdBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      await updateDoc(doc(db,"customers",form.customerId),{status:"quoted",updatedAt:serverTimestamp(),updatedBy:staff.id});
       setForm(initial);setOpen(false);await load();
     }finally{setSaving(false)}
   }
 
-  async function setStatus(q,status,extra={}){await updateDoc(doc(db,"quotes",q.id),{status,...extra,updatedAt:serverTimestamp()});await load()}
+  async function setStatus(q,status,extra={}){
+    await updateDoc(doc(db,"quotes",q.id),{status,...extra,updatedAt:serverTimestamp()});
+    if(status==="submitted")await updateDoc(doc(db,"customers",q.customerId),{status:"applicant",updatedAt:serverTimestamp(),updatedBy:staff.id});
+    if(["approved","conditional_approval"].includes(status))await updateDoc(doc(db,"customers",q.customerId),{status:"approved_applicant",updatedAt:serverTimestamp(),updatedBy:staff.id});
+    await load()
+  }
   async function setReview(q,level){
     const status=level==="declined"?"declined":level==="conditional"?"conditional_approval":level==="straight"?"approved":"submitted";
     await setStatus(q,status,{underwritingLevel:level,reviewedBy:staff.id,reviewedAt:serverTimestamp()});
