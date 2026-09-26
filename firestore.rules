@@ -82,6 +82,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /customerAccounts/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid)
+                  || hasPermission("customer.account.manage");
+      allow create: if hasPermission("customer.account.manage")
+                    && request.resource.data.authUid == uid
+                    && request.resource.data.status == "active";
+      allow update: if hasPermission("customer.account.manage");
+      allow delete: if false;
+    }
+
     match /walkIns/{walkInId} {
       allow read: if hasPermission("walkin.read");
       allow create: if hasPermission("walkin.create")
@@ -107,7 +117,7 @@ service cloud.firestore {
     }
 
     match /policies/{policyId} {
-      allow read: if hasPermission("policy.read") || hasPermission("billing.read") || hasPermission("finance.read");
+      allow read: if hasPermission("policy.read") || hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("policy.issue");
       allow update: if hasPermission("policy.update")
         || (
@@ -116,17 +126,17 @@ service cloud.firestore {
             "billingStatus","lastPaymentAmount","lastPaymentAt","billingUpdatedBy","updatedAt"
           ])
         );
-      allow delete: if false;
+      allow delete: if hasPermission("policy.delete") && resource.data.status != "active";
     }
 
     match /insuredAssets/{assetId} {
       allow read: if hasPermission("policy.read") || hasPermission("customer.read");
       allow create, update: if hasPermission("asset.manage") || hasPermission("policy.update");
-      allow delete: if false;
+      allow delete: if hasPermission("policy.delete");
     }
 
     match /claims/{claimId} {
-      allow read: if hasPermission("claim.read");
+      allow read: if hasPermission("claim.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("claim.createForCustomer");
       allow update: if hasPermission("claim.update") || hasPermission("claim.assign") || hasPermission("claim.reserve") || hasPermission("claim.decide") || hasPermission("claim.settle") || hasPermission("claim.close");
       allow delete: if false;
