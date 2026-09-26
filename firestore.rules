@@ -206,6 +206,13 @@ service cloud.firestore {
 
 
 
+
+    match /billingPaymentAllocations/{allocationId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read");
+      allow create: if hasPermission("billing.manage");
+      allow update, delete: if false;
+    }
+
     match /billingCredits/{creditId} {
       allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create, update: if hasPermission("billing.manage");
