@@ -18,15 +18,49 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/customers/$(customerId)).data.authUid == request.auth.uid;
     }
 
+    function bootstrapPath(){ return /databases/$(database)/documents/system/bootstrap; }
+    function bootstrapStaffPath(){ return /databases/$(database)/documents/staff/$(request.auth.uid); }
+    function isBootstrapCreateForSelf(){
+      return signedIn()
+        && !exists(bootstrapPath())
+        && request.resource.data.authUid == request.auth.uid
+        && request.resource.data.employeeId == "SMI-000001"
+        && request.resource.data.role == "founder"
+        && request.resource.data.department == "executive"
+        && request.resource.data.title == "Founder / Chief Executive Officer"
+        && request.resource.data.status == "active"
+        && request.resource.data.permissions.size() == 1
+        && request.resource.data.permissions[0] == "*"
+        && getAfter(bootstrapPath()).data.initialized == true
+        && getAfter(bootstrapPath()).data.initializedBy == request.auth.uid;
+    }
+
     match /system/{docId} {
-      allow read: if hasPermission("system.read");
-      allow write: if false;
+      allow read: if hasPermission("system.read")
+                  || (docId == "bootstrap" && signedIn() && !exists(bootstrapPath()));
+      allow create: if docId == "bootstrap"
+                    && signedIn()
+                    && !exists(bootstrapPath())
+                    && request.resource.data.initialized == true
+                    && request.resource.data.initializedBy == request.auth.uid
+                    && request.resource.data.state == "initialized"
+                    && request.resource.data.bootstrapVersion == 1
+                    && getAfter(bootstrapStaffPath()).data.authUid == request.auth.uid
+                    && getAfter(bootstrapStaffPath()).data.role == "founder"
+                    && getAfter(bootstrapStaffPath()).data.employeeId == "SMI-000001";
+      allow update, delete: if false;
     }
 
     match /staff/{uid} {
       allow read: if isActiveStaff() && (request.auth.uid == uid || hasPermission("staff.read"));
-      allow create: if hasPermission("staff.manage")
-                    && request.resource.data.role != "founder";
+      allow create: if (
+                      uid == request.auth.uid
+                      && isBootstrapCreateForSelf()
+                    )
+                    || (
+                      hasPermission("staff.manage")
+                      && request.resource.data.role != "founder"
+                    );
       allow update: if hasPermission("staff.manage")
                     && resource.data.role != "founder"
                     && request.resource.data.role != "founder";
@@ -115,7 +149,18 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if hasPermission("audit.read");
-      allow create: if hasPermission("admin.manage");
+      allow create: if hasPermission("admin.manage")
+                    || (
+                      signedIn()
+                      && !exists(bootstrapPath())
+                      && logId == "bootstrap-000001"
+                      && request.resource.data.sequence == 1
+                      && request.resource.data.eventType == "system.bootstrap.completed"
+                      && request.resource.data.actorUid == request.auth.uid
+                      && request.resource.data.actorEmployeeId == "SMI-000001"
+                      && getAfter(bootstrapPath()).data.initialized == true
+                      && getAfter(bootstrapPath()).data.initializedBy == request.auth.uid
+                    );
       allow update, delete: if false;
     }
 
