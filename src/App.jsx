@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {Building2,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
+import {Building2,ChevronDown,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Plus,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
 import {createUserWithEmailAndPassword,deleteUser,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
 import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
@@ -80,7 +80,10 @@ function Login(){
 export default function App(){
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
-  const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false)};
+  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false);
+  const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
+  const allNav=navGroups.flatMap(([,items])=>items);
+  const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,6):[];
 
   async function refreshAccess(u){
     if(!u){setStaff(null);setAccount(null);setBootstrapState(null);return}
@@ -122,14 +125,33 @@ export default function App(){
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
-      <header className="topbar"><button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><div className="search"><Search size={17}/><input placeholder="Search customers, policies, claims…"/></div><div className="environment"><span></span> LIVE OPERATIONS</div></header>
+      <header className="topbar">
+        <button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button>
+        <div className="topbar-page"><span>Sterling Mutual</span><strong>{page}</strong></div>
+        <div className="command-search">
+          <Search size={16}/>
+          <input value={finder} onChange={e=>setFinder(e.target.value)} placeholder="Go to a workspace…"/>
+          {finderMatches.length>0&&<div className="command-results">{finderMatches.map(([name,Icon])=><button key={name} onClick={()=>navigate(name)}><Icon size={15}/><span>{name}</span></button>)}</div>}
+        </div>
+        <div className="new-menu-wrap">
+          <button className="primary compact topbar-new" onClick={()=>setNewOpen(v=>!v)}><Plus size={16}/> New <ChevronDown size={14}/></button>
+          {newOpen&&<div className="new-menu">
+            <button onClick={()=>navigate("Walk-ins",{openNew:true})}><UsersRound size={16}/><span><strong>Walk-in</strong><small>Check someone into the lobby</small></span></button>
+            <button onClick={()=>navigate("Customers",{openNew:true})}><Users size={16}/><span><strong>Customer</strong><small>Create a customer record</small></span></button>
+            <button onClick={()=>navigate("Quotes & Applications",{openNew:true})}><ClipboardList size={16}/><span><strong>Quote</strong><small>Start new business</small></span></button>
+            <button onClick={()=>navigate("Claims",{openNew:true})}><ShieldCheck size={16}/><span><strong>Claim</strong><small>File first notice of loss</small></span></button>
+          </div>}
+        </div>
+        <div className="environment"><span></span> LIVE</div>
+      </header>
       {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}
-      {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate}/>}\n      {page==="Customers"&&<Customers staff={staff}/>}
-      {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId}/>}
-      {page==="Policies"&&<Policies staff={staff}/>}
-      {page==="Claims"&&<Claims staff={staff}/>}
+      {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
+      {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
+      {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
+      {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}
+      {page==="Claims"&&<Claims staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="SIU"&&<SIU staff={staff}/>}
-      {page==="Billing"&&<Billing staff={staff}/>}
+      {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff}/>}
       {!["Dashboard","Walk-ins","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
