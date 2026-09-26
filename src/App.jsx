@@ -209,7 +209,7 @@ export default function App(){
       {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}      {page==="Cancellations"&&<Cancellations staff={staff} onNavigate={navigate}/>}
       {page==="Claims"&&<Claims staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
-      {page==="SIU"&&<SIU staff={staff}/>}
+      {page==="SIU"&&<SIU staff={staff} onNavigate={navigate}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff} onNavigate={navigate}/>}
       {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
