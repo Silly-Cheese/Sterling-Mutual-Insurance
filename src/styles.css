@@ -399,3 +399,11 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 .allocation-preview span{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#89938f}
 .allocation-preview strong{font-size:12px;margin-top:3px}
 @media(max-width:760px){.allocation-options,.allocation-preview{grid-template-columns:1fr}}
+
+.customer-billing-detail{width:min(1080px,100%)}
+.customer-payment-history{display:grid}
+.customer-payment-history>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:11px;align-items:center;padding:13px 15px;border-top:1px solid #e7ebe8}
+.customer-payment-history strong,.customer-payment-history span{display:block}
+.customer-payment-history span{font-size:10px;color:#7d8885;margin-top:3px}
+.customer-payment-history>div>div:last-child{text-align:right}
+@media(max-width:620px){.customer-payment-history>div{grid-template-columns:34px 1fr}.customer-payment-history>div>div:last-child{grid-column:2;text-align:left}}
