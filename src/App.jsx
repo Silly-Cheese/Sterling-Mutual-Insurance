@@ -14,6 +14,7 @@ import SIU from "./pages/SIU";
 import Billing from "./pages/Billing";
 import Company from "./pages/Company";
 import CustomerPortal from "./pages/CustomerPortal";
+import CustomerWorkspace from "./pages/CustomerWorkspace";
 import Appointments from "./pages/Appointments";
 import MyWork from "./pages/MyWork";
 import {can,PERMISSIONS} from "./permissions";
@@ -155,14 +156,14 @@ export default function App(){
       </header>
       {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}      {page==="My Work"&&<MyWork staff={staff} onNavigate={navigate}/>}      {page==="Appointments"&&<Appointments staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
-      {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
+      {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}      {page==="Customer Workspace"&&<CustomerWorkspace staff={staff} customerId={pageContext?.customerId} onNavigate={navigate}/>}
       {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}
       {page==="Claims"&&<Claims staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="SIU"&&<SIU staff={staff}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff}/>}
-      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
