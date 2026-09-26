@@ -15,7 +15,7 @@ import Company from "./pages/Company";
 
 const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
 
-function Login({onBootstrap}){
+function Login(){
   const [email,setEmail]=useState(""); const [password,setPassword]=useState("");
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
   async function submit(e){
@@ -35,31 +35,37 @@ function Login({onBootstrap}){
         {error&&<div className="error-box">{error}</div>}
         <button className="primary" disabled={loading}>{loading?"Signing in…":"Sign in"}</button>
       </form>
-      <button className="link-button" onClick={onBootstrap}>Initial company setup</button>
     </div>
     <div className="auth-footer">Sterling Mutual Insurance • Internal Operations</div>
   </div>
 }
 
 export default function App(){
-  const appBase=import.meta.env.BASE_URL || "/";
-  const homePath=appBase.endsWith("/")?appBase:appBase+"/";
-  const bootstrapPath=homePath+"bootstrap";
-  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[loading,setLoading]=useState(true);
-  const [bootstrap,setBootstrap]=useState(location.pathname.endsWith("/bootstrap")),[page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
+  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
+  const [page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
+
+  async function refreshAccess(u){
+    if(!u){setStaff(null);setBootstrapState(null);return}
+    const [staffSnap,bootSnap]=await Promise.all([
+      getDoc(doc(db,"staff",u.uid)),
+      getDoc(doc(db,"system","bootstrap"))
+    ]);
+    setStaff(staffSnap.exists()?{id:staffSnap.id,...staffSnap.data()}:null);
+    setBootstrapState(bootSnap.exists()?bootSnap.data():null);
+  }
 
   useEffect(()=>onAuthStateChanged(auth,async u=>{
-    setUser(u); setStaff(null);
-    if(u){const snap=await getDoc(doc(db,"staff",u.uid)); if(snap.exists())setStaff({id:snap.id,...snap.data()})}
+    setUser(u); setStaff(null); setBootstrapState(null);
+    if(u)await refreshAccess(u);
     setLoading(false);
   }),[]);
 
   const initials=useMemo(()=>staff?.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")||"SM",[staff]);
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
-  if(bootstrap&&!user)return <Bootstrap onBack={()=>{history.replaceState(null,"",homePath);setBootstrap(false)}} homePath={homePath}/>;
-  if(!user)return <Login onBootstrap={()=>{history.replaceState(null,"",bootstrapPath);setBootstrap(true)}}/>;
-  if(!staff)return <div className="auth-shell"><div className="auth-card"><h1>Access pending</h1><p>Your authentication account exists, but no active Sterling Mutual staff profile is attached to it.</p><button className="primary" onClick={()=>signOut(auth)}>Sign out</button></div></div>;
+  if(!user)return <Login/>;
+  if(!staff&&!bootstrapState)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
+  if(!staff&&bootstrapState)return <div className="auth-shell"><div className="auth-card"><h1>Access pending</h1><p>Sterling Mutual has already been initialized, but this authentication account does not have an active staff profile.</p><button className="primary" onClick={()=>signOut(auth)}>Sign out</button></div></div>;
 
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
