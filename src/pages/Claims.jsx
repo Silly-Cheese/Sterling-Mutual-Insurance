@@ -8,7 +8,7 @@ const empty={policyId:"",lossDate:"",lossType:"collision",description:"",claimed
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 const claimNo=()=>"CLM-"+Date.now().toString().slice(-9);
 
-export default function Claims({staff}){
+export default function Claims({staff,initialCustomerId,openNew}){
   const [claims,setClaims]=useState([]),[policies,setPolicies]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState(empty),[selected,setSelected]=useState(null),[saving,setSaving]=useState(false);
 
   async function load(){
@@ -17,6 +17,7 @@ export default function Claims({staff}){
     setPolicies(p.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.status==="active"));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{if(initialCustomerId&&policies.length){const p=policies.find(x=>x.customerId===initialCustomerId);setForm(v=>({...v,policyId:p?.id||""}));setOpen(true)}else if(openNew)setOpen(true)},[initialCustomerId,openNew,policies]);
 
   const policyMap=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,p])),[policies]);
 
@@ -53,6 +54,7 @@ export default function Claims({staff}){
   }
 
   return <section className="content">
+    <div className="workflow-ribbon service-ribbon"><span>Intake</span><span>Customer</span><span>Policy</span><strong>Claim</strong><span>Decision</span><span>Settlement</span></div>
     <div className="page-heading"><div><div className="eyebrow">CLAIMS OPERATIONS</div><h1>Claims</h1><p>File claims for customers, manage reserves, coverage decisions, settlements, and investigations.</p></div>{can(staff,PERMISSIONS.CLAIM_CREATE_FOR_CUSTOMER)&&<button className="primary compact" onClick={()=>setOpen(true)}><ClipboardPlus size={17}/> File claim for customer</button>}</div>
 
     <div className="metric-grid">
