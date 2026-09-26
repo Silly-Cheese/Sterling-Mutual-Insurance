@@ -7,17 +7,17 @@ import {can,PERMISSIONS,PERMISSION_GROUPS,ROLE_PRESETS,effectivePermissions} fro
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 
 export default function Company({staff,onNavigate}){
-  const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[accounts,setAccounts]=useState([]),[audit,setAudit]=useState([]),[approvals,setApprovals]=useState([]),[archives,setArchives]=useState([]),[tab,setTab]=useState("finance");
+  const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[accounts,setAccounts]=useState([]),[audit,setAudit]=useState([]),[approvals,setApprovals]=useState([]),[archives,setArchives]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[siuCases,setSiuCases]=useState([]),[holds,setHolds]=useState([]),[documentRequests,setDocumentRequests]=useState([]),[tab,setTab]=useState("finance");
 
   async function safeDocs(name){
     try{const snap=await getDocs(collection(db,name));return snap.docs.map(d=>({id:d.id,...d.data()}))}catch{return []}
   }
 
   async function load(){
-    const [p,c,t,s,ac,a,ap,ar]=await Promise.all([
-      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("accounts"),safeDocs("auditLogs"),safeDocs("approvals"),safeDocs("archives")
+    const [p,c,t,s,ac,a,ap,ar,inv,can,siu,h,dr]=await Promise.all([
+      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("accounts"),safeDocs("auditLogs"),safeDocs("approvals"),safeDocs("archives"),safeDocs("billingInvoices"),safeDocs("policyCancellations"),safeDocs("siuCases"),safeDocs("customerHolds"),safeDocs("documentRequests")
     ]);
-    setPolicies(p);setClaims(c);setTx(t);setStaffList(s);setAccounts(ac);setApprovals(ap);setArchives(ar);
+    setPolicies(p);setClaims(c);setTx(t);setStaffList(s);setAccounts(ac);setApprovals(ap);setArchives(ar);setInvoices(inv);setCancellations(can);setSiuCases(siu);setHolds(h);setDocumentRequests(dr);
     setAudit(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
@@ -43,7 +43,7 @@ export default function Company({staff,onNavigate}){
 
     <div className="company-tabs">
       <button className={tab==="finance"?"active":""} onClick={()=>setTab("finance")}><Landmark size={15}/> Finance</button>
-      <button className={tab==="analytics"?"active":""} onClick={()=>setTab("analytics")}><BarChart3 size={15}/> Analytics</button>
+      <button className={tab==="analytics"?"active":""} onClick={()=>setTab("analytics")}><BarChart3 size={15}/> Analytics</button><button className={tab==="exceptions"?"active":""} onClick={()=>setTab("exceptions")}><ShieldCheck size={15}/> Exception Center</button>
       <button className={tab==="staff"?"active":""} onClick={()=>setTab("staff")}><Users size={15}/> Staff</button>
       {can(staff,PERMISSIONS.APPROVAL_READ)&&<button className={tab==="approvals"?"active":""} onClick={()=>setTab("approvals")}><CheckCircle2 size={15}/> Approvals</button>}
       {can(staff,PERMISSIONS.ARCHIVE_READ)&&<button className={tab==="archives"?"active":""} onClick={()=>setTab("archives")}><Archive size={15}/> Archive</button>}
@@ -52,7 +52,7 @@ export default function Company({staff,onNavigate}){
     </div>
 
     {tab==="finance"&&<Finance metrics={metrics}/>}
-    {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx} staffList={staffList}/>}
+    {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx} staffList={staffList}/>}    {tab==="exceptions"&&<Exceptions invoices={invoices} cancellations={cancellations} siuCases={siuCases} claims={claims} approvals={approvals} holds={holds} documentRequests={documentRequests} onNavigate={onNavigate}/>}
     {tab==="staff"&&<Staff staffList={staffList} accounts={accounts} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} canPermissions={can(staff,PERMISSIONS.STAFF_PERMISSION_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
     {tab==="approvals"&&<Approvals approvals={approvals} staff={staff} reload={load} logAdmin={logAdmin} onNavigate={onNavigate}/>}
     {tab==="archives"&&<Archives archives={archives}/>}
@@ -219,4 +219,29 @@ function Audit({audit}){
 
 function Documents({policies}){
   return <div className="company-section"><div className="documents-grid">{policies.slice(0,18).map(p=><article className="document-card" key={p.id}><FileText size={22}/><div><strong>Policy Declaration</strong><span>{p.policyNumber}</span></div><button className="secondary compact" onClick={()=>window.print()}>Print</button></article>)}</div>{policies.length===0&&<div className="empty-state"><FileText size={30}/><h3>No policy documents yet.</h3></div>}<div className="notice-box">Document Center is ready for declarations, insurance cards, cancellation notices, renewal notices, receipts, claim letters, and customer correspondence.</div></div>
+}
+
+
+function Exceptions({invoices,cancellations,siuCases,claims,approvals,holds,documentRequests,onNavigate}){
+  const today=new Date().toISOString().slice(0,10);
+  const ageDays=ts=>ts?.toDate?Math.max(0,Math.floor((Date.now()-ts.toDate().getTime())/86400000)):0;
+  const daysUntil=date=>date?Math.ceil((new Date(date+"T23:59:59")-new Date())/86400000):null;
+  const items=[
+    ...holds.filter(h=>h.status==="active"&&h.severity==="critical").map(h=>({kind:"Customer hold",title:h.reason,detail:(h.createdByName||"Staff")+" • critical service hold",priority:1,page:"Customers"})),
+    ...invoices.filter(i=>!["paid","void"].includes(i.status)&&i.dueDate<today).map(i=>({kind:"Billing",title:i.customerName||i.policyNumber,detail:(i.invoiceNumber||"Invoice")+" • overdue since "+i.dueDate,priority:ageDays(i.createdAt)>=10?1:2,page:"Billing",context:{policyId:i.policyId}})),
+    ...cancellations.filter(c=>c.status==="open").map(c=>{const d=daysUntil(c.effectiveDate);return {kind:"Cancellation",title:c.customerName||c.policyNumber,detail:c.policyNumber+" • "+(d===null?"no effective date":d<0?Math.abs(d)+" days overdue":d+" days to effective"),priority:d!==null&&d<=5?1:2,page:"Cancellations"}}),
+    ...siuCases.filter(s=>s.status==="open"&&(ageDays(s.createdAt)>=7||s.stage==="supervisor_review")).map(s=>({kind:"SIU",title:s.claimNumber,detail:s.stage==="supervisor_review"?"Supervisor review required":ageDays(s.createdAt)+" days open",priority:1,page:"SIU"})),
+    ...claims.filter(cl=>!["closed","denied"].includes(cl.status)&&(cl.severity==="catastrophic"||Number(cl.reserveAmount||0)>=50000)).map(cl=>({kind:"Claims",title:cl.claimNumber,detail:(cl.severity||"claim")+" • reserve "+money(cl.reserveAmount),priority:1,page:"Claims",context:{customerId:cl.customerId}})),
+    ...approvals.filter(a=>a.status==="pending").map(a=>({kind:"Approval",title:a.title||a.actionType,detail:a.summary||"Management approval required",priority:1,page:"Company"})),
+    ...documentRequests.filter(r=>r.status==="requested"&&r.dueDate&&r.dueDate<today).map(r=>({kind:"Documents",title:r.customerName||"Customer document",detail:r.title+" • overdue since "+r.dueDate,priority:2,page:"Customers"}))
+  ].sort((a,b)=>a.priority-b.priority);
+  return <div className="company-section">
+    <div className="metric-grid">
+      <article className="metric-card"><div className="metric-value">{items.length}</div><div className="metric-label">Open exceptions</div></article>
+      <article className="metric-card"><div className="metric-value">{items.filter(x=>x.priority===1).length}</div><div className="metric-label">Priority exceptions</div></article>
+      <article className="metric-card"><div className="metric-value">{cancellations.filter(c=>c.status==="open").length}</div><div className="metric-label">Open cancellations</div></article>
+      <article className="metric-card"><div className="metric-value">{approvals.filter(a=>a.status==="pending").length}</div><div className="metric-label">Pending approvals</div></article>
+    </div>
+    <div className="table-card"><div className="table-toolbar"><strong>Enterprise exception queue</strong><span>{items.length} items</span></div>{items.length===0?<div className="empty-state"><CheckCircle2 size={28}/><h3>No enterprise exceptions.</h3><p>Nothing currently requires elevated attention.</p></div>:<div className="exception-list">{items.map((x,i)=><button key={i} className={x.priority===1?"priority":""} onClick={()=>onNavigate?.(x.page,x.context)}><span className="exception-kind">{x.kind}</span><div><strong>{x.title}</strong><small>{x.detail}</small></div><span>Open</span></button>)}</div>}</div>
+  </div>
 }
