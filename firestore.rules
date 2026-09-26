@@ -177,6 +177,44 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+
+    match /billingInvoices/{invoiceId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
+      allow create, update: if hasPermission("billing.manage");
+      allow delete: if false;
+    }
+
+    match /paymentPlans/{planId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
+      allow create, update: if hasPermission("billing.manage");
+      allow delete: if false;
+    }
+
+    match /billingEvents/{eventId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read");
+      allow create: if hasPermission("billing.manage");
+      allow update, delete: if false;
+    }
+
+    match /policyCancellations/{cancellationId} {
+      allow read: if hasPermission("policy.read") || hasPermission("billing.read");
+      allow create: if hasPermission("policy.update") || hasPermission("billing.manage");
+      allow update: if hasPermission("policy.update") || hasPermission("billing.manage");
+      allow delete: if false;
+    }
+
+    match /claimContacts/{contactId} {
+      allow read: if hasPermission("claim.read");
+      allow create: if hasPermission("claim.update") || hasPermission("claim.assign");
+      allow update, delete: if false;
+    }
+
+    match /claimEstimates/{estimateId} {
+      allow read: if hasPermission("claim.read");
+      allow create, update: if hasPermission("claim.update") || hasPermission("claim.reserve");
+      allow delete: if false;
+    }
+
     match /companyLedger/{entryId} {
       allow read: if hasPermission("finance.read");
       allow create, update: if hasPermission("finance.manage");
