@@ -385,3 +385,17 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 .siu-disposition h3{font-family:"Libre Caslon Display",serif;font-size:25px;font-weight:400;margin:4px 0}
 @media(max-width:900px){.siu-command-header{grid-template-columns:repeat(3,1fr)}.siu-overview-grid,.siu-two-col{grid-template-columns:1fr}}
 @media(max-width:560px){.siu-case-list>button{grid-template-columns:42px 1fr}.siu-case-list>button>div:nth-child(3),.siu-case-list>button>.status-pill{grid-column:2}.siu-command-header{grid-template-columns:1fr 1fr}}
+
+.payment-allocation-box{margin:12px 0;border:1px solid #dfe6e1;background:#f8faf8;border-radius:12px;padding:13px}
+.payment-allocation-box h4{font-family:"Libre Caslon Display",serif;font-weight:400;font-size:21px;margin:4px 0 10px}
+.allocation-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.allocation-options>label{display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:flex-start;border:1px solid #e0e6e2;background:#fff;border-radius:9px;padding:9px;cursor:pointer}
+.allocation-options>label.active{border-color:#6d9588;background:#edf5f0}
+.allocation-options strong,.allocation-options small{display:block}
+.allocation-options small{font-size:9px;color:#7d8885;margin-top:2px}
+.allocation-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px}
+.allocation-preview>div{background:#fff;border:1px solid #e2e7e3;border-radius:8px;padding:9px}
+.allocation-preview span,.allocation-preview strong{display:block}
+.allocation-preview span{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#89938f}
+.allocation-preview strong{font-size:12px;margin-top:3px}
+@media(max-width:760px){.allocation-options,.allocation-preview{grid-template-columns:1fr}}
