@@ -86,9 +86,15 @@ function Login(){
 export default function App(){
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
-  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[]});
+  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[]}),[recentCustomers,setRecentCustomers]=useState([]),[favoriteCustomers,setFavoriteCustomers]=useState([]);
   const searchRef=useRef(null);
-  const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
+  const refreshShortcuts=()=>{
+    try{
+      setRecentCustomers(JSON.parse(localStorage.getItem("smi-recent-customers")||"[]"));
+      setFavoriteCustomers(JSON.parse(localStorage.getItem("smi-favorite-customers")||"[]"));
+    }catch{}
+  };
+  const navigate=(name,context=null)=>{refreshShortcuts();setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
   const visibleNavGroups=navGroups.map(([group,items])=>[group,items.filter(([, ,permission])=>!permission||can(staff,permission))]).filter(([,items])=>items.length);
   const allNav=visibleNavGroups.flatMap(([,items])=>items);
   const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,5):[];
@@ -134,6 +140,8 @@ export default function App(){
     setBootstrapState(bootSnap.exists()?bootSnap.data():null);
   }
 
+  useEffect(()=>{refreshShortcuts()},[]);
+
   useEffect(()=>onAuthStateChanged(auth,async u=>{
     setUser(u); setStaff(null); setAccount(null); setCustomerAccount(null); setBootstrapState(null);
     if(u)await refreshAccess(u);
@@ -159,13 +167,18 @@ export default function App(){
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
       <div className="sidebar-brand"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div><button className="mobile-close" onClick={()=>setMobileOpen(false)}><X size={20}/></button></div>
-      <nav>{visibleNavGroups.map(([group,items])=><div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{items.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>navigate(name)}><Icon size={18}/><span>{name}</span></button>)}</div>)}</nav>
+      <nav>{visibleNavGroups.map(([group,items])=><div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{items.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>navigate(name)}><Icon size={18}/><span>{name}</span></button>)}</div>)}
+        {(favoriteCustomers.length>0||recentCustomers.length>0)&&<div className="sidebar-shortcuts">
+          {favoriteCustomers.length>0&&<div className="nav-group"><div className="nav-group-label">FAVORITES</div>{favoriteCustomers.slice(0,4).map(x=><button className="shortcut-item" key={"f"+x.id} onClick={()=>navigate("Customer Workspace",{customerId:x.id})}><span>★</span><b>{x.name}</b></button>)}</div>}
+          {recentCustomers.length>0&&<div className="nav-group"><div className="nav-group-label">RECENT</div>{recentCustomers.slice(0,4).map(x=><button className="shortcut-item" key={"r"+x.id} onClick={()=>navigate("Customer Workspace",{customerId:x.id})}><span>↗</span><b>{x.name}</b></button>)}</div>}
+        </div>}
+      </nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
       <header className="topbar">
         <button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button>
-        <div className="topbar-page"><span>Sterling Mutual</span><strong>{page}</strong></div>
+        <div className="topbar-page"><span>{pageContext?.customerId?(searchRecords.find(r=>r.type==="Customer"&&r.context?.customerId===pageContext.customerId)?.label||"Customer")+" → Sterling Mutual":"Sterling Mutual"}</span><strong>{page}</strong></div>
         <div className="command-search">
           <Search size={16}/>
           <input ref={searchRef} value={finder} onChange={e=>setFinder(e.target.value)} placeholder="Search customers, policy #, claim #…  Ctrl+K"/>
