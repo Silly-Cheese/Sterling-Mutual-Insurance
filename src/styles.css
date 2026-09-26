@@ -191,3 +191,24 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
   .next-actions>div:first-child{margin-right:0}
   .next-actions button{width:100%}
 }
+
+
+/* Customer portal + policy administration */
+.customer-portal-shell{min-height:100vh;background:linear-gradient(180deg,#f8faf7,#f1f4f1)}
+.customer-portal-header{height:78px;padding:0 max(22px,5vw);background:#111b1c;color:white;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff12}
+.customer-portal-main{max-width:1180px;margin:0 auto;padding:48px 24px}
+.customer-welcome{margin-bottom:24px}
+.customer-welcome h1{font-family:"Libre Caslon Display",serif;font-weight:400;font-size:44px;margin:7px 0}
+.customer-welcome p{color:#6e7a76;margin:0}
+.customer-account-summary{grid-template-columns:repeat(4,1fr);margin-bottom:16px}
+.customer-portal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.portal-record-list{display:grid}
+.portal-record-list>div{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px;border-top:1px solid #e7ebe8}
+.portal-record-list>div>svg{color:#356555}
+.portal-record-list strong,.portal-record-list span{display:block}
+.portal-record-list span{font-size:11px;color:#7d8885;margin-top:3px}
+.portal-record-list>div>div:last-child{text-align:right}
+.policy-admin-actions{flex-wrap:wrap}
+.policy-admin-actions .danger-soft{margin-right:auto}
+@media(max-width:760px){.customer-account-summary{grid-template-columns:1fr 1fr}.customer-portal-grid{grid-template-columns:1fr}.customer-welcome h1{font-size:36px}}
+@media(max-width:480px){.customer-account-summary{grid-template-columns:1fr}.customer-portal-header{padding:0 16px}.customer-portal-main{padding:30px 16px}.portal-record-list>div{grid-template-columns:26px 1fr}.portal-record-list>div>div:last-child{grid-column:2;text-align:left}}
