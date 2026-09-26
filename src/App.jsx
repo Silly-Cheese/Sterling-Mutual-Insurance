@@ -1,11 +1,12 @@
 import {useEffect,useMemo,useState} from "react";
-import {Building2,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Search,ShieldCheck,Users,WalletCards,X} from "lucide-react";
+import {Building2,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
 import {createUserWithEmailAndPassword,deleteUser,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
 import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
 import Bootstrap from "./pages/Bootstrap";
 import Dashboard from "./pages/Dashboard";
 import Customers from "./pages/Customers";
+import WalkIns from "./pages/WalkIns";
 import QuotesApplications from "./pages/QuotesApplications";
 import Policies from "./pages/Policies";
 import Claims from "./pages/Claims";
@@ -13,7 +14,11 @@ import SIU from "./pages/SIU";
 import Billing from "./pages/Billing";
 import Company from "./pages/Company";
 
-const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
+const navGroups=[
+  ["FRONT OFFICE",[["Dashboard",LayoutDashboard],["Walk-ins",UsersRound],["Customers",Users],["Quotes & Applications",ClipboardList]]],
+  ["COVERAGE & SERVICE",[["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards]]],
+  ["MANAGEMENT",[["Company",Building2]]]
+];
 
 function Login(){
   const [mode,setMode]=useState("signin");
@@ -74,7 +79,8 @@ function Login(){
 
 export default function App(){
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
-  const [page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
+  const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
+  const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false)};
 
   async function refreshAccess(u){
     if(!u){setStaff(null);setAccount(null);setBootstrapState(null);return}
@@ -112,7 +118,7 @@ export default function App(){
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
       <div className="sidebar-brand"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div><button className="mobile-close" onClick={()=>setMobileOpen(false)}><X size={20}/></button></div>
-      <nav>{nav.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>{setPage(name);setMobileOpen(false)}}><Icon size={18}/><span>{name}</span></button>)}</nav>
+      <nav>{navGroups.map(([group,items])=><div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{items.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>navigate(name)}><Icon size={18}/><span>{name}</span></button>)}</div>)}</nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
@@ -125,7 +131,7 @@ export default function App(){
       {page==="SIU"&&<SIU staff={staff}/>}
       {page==="Billing"&&<Billing staff={staff}/>}
       {page==="Company"&&<Company staff={staff}/>}
-      {!["Dashboard","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","Walk-ins","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
