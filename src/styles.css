@@ -294,3 +294,69 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 
 @media(max-width:900px){.billing-account-hero{grid-template-columns:1fr 1fr}.billing-overview-grid,.billing-tab-grid,.claim-summary-grid,.claim-two-col{grid-template-columns:1fr}.delinquency-steps,.cancellation-steps{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.billing-account-hero,.delinquency-steps,.cancellation-steps{grid-template-columns:1fr}.cancellation-header{flex-direction:column}}
+
+
+/* Managed-case system expansion */
+.billing-customer-list{display:grid}
+.billing-customer-row{display:grid;grid-template-columns:42px minmax(0,1fr) 160px auto;gap:12px;align-items:center;border:0;border-top:1px solid #e7ebe8;background:#fff;padding:14px 16px;text-align:left;color:inherit;width:100%}
+.billing-customer-row:hover{background:#f7f9f7}
+.billing-customer-row>div:nth-child(2) strong,.billing-customer-row>div:nth-child(2) span,.billing-customer-row>div:nth-child(3) strong,.billing-customer-row>div:nth-child(3) span{display:block}
+.billing-customer-row span{font-size:10px;color:#7d8885;margin-top:3px}
+.billing-status-stack{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.account-policy-list>button{width:100%;border:0;border-top:1px solid #e7ebe8;background:#fff;padding:13px 15px;display:flex;justify-content:space-between;gap:12px;text-align:left;color:inherit}
+.account-policy-list>button:hover{background:#f7f9f7}
+.account-policy-list strong,.account-policy-list span{display:block}
+.account-policy-list span{font-size:10px;color:#7d8885;margin-top:3px}
+.ledger-reverse{margin-left:8px;font-size:10px}
+.ledger-row{grid-template-columns:minmax(0,1fr) auto auto!important}
+
+.cancellation-filters,.work-filters{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.cancellation-filters button,.work-filters button{border:1px solid var(--line);background:#fff;color:#687570;border-radius:999px;padding:7px 11px;font-size:10px;font-weight:700;text-transform:capitalize}
+.cancellation-filters button.active,.work-filters button.active{background:#173f35;color:#fff;border-color:#173f35}
+.cancellation-case-list{display:grid}
+.cancellation-case{padding:17px;border-top:1px solid #e7ebe8;background:#fff}
+.cancellation-case.open{border-left:3px solid #bf7432}
+.cancellation-case-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.cancellation-case-top h3{font-family:"Libre Caslon Display",serif;font-size:25px;font-weight:400;margin:3px 0}
+.cancellation-case-top p,.cancellation-reason{color:#687570;margin:0}
+.cancellation-case-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:13px 0}
+.cancellation-case-kpis>div{border:1px solid #e2e7e3;background:#f8faf8;border-radius:9px;padding:10px}
+.cancellation-case-kpis span,.cancellation-case-kpis strong{display:block}
+.cancellation-case-kpis span{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#89938f}
+.cancellation-case-kpis strong{margin-top:4px;font-size:12px}
+
+.customer-risk-strip{display:flex;gap:8px;overflow:auto;margin-bottom:12px}
+.customer-risk-strip>button{min-width:190px;border:1px solid #ead9c2;background:#fff9f0;border-radius:10px;padding:10px 11px;display:grid;grid-template-columns:22px 1fr;gap:7px;text-align:left;color:#805a2f}
+.customer-risk-strip strong,.customer-risk-strip small{display:block}
+.customer-risk-strip small{font-size:9px;margin-top:2px;color:#8e7559}
+.communication-list>div,.claim-party-list>div,.coverage-item-list>div{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:13px 15px;border-top:1px solid #e7ebe8}
+.communication-list strong,.communication-list span,.communication-list small,.claim-party-list strong,.claim-party-list span,.claim-party-list small,.coverage-item-list strong,.coverage-item-list span,.coverage-item-list small{display:block}
+.communication-list span,.claim-party-list span,.coverage-item-list span{font-size:11px;color:#687570;margin-top:3px}
+.communication-list small,.claim-party-list small,.coverage-item-list small{font-size:9px;color:#89938f;margin-top:4px}
+
+.portal-warning{display:grid;grid-template-columns:28px 1fr;gap:9px;align-items:start;background:#fff4df;border:1px solid #eed8b3;color:#79511e;border-radius:11px;padding:12px 14px;margin-bottom:14px}
+.portal-warning strong,.portal-warning span{display:block}
+.portal-warning span{font-size:11px;margin-top:2px;color:#8b6c45}
+.portal-cancellation-list>div{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:14px;padding:15px 16px;border-top:1px solid #e7ebe8}
+.portal-cancellation-list strong,.portal-cancellation-list span{display:block}
+.portal-cancellation-list p{margin:6px 0 0;color:#66736f}
+.portal-cancellation-list>div>div:last-child{text-align:right}
+.portal-cancellation-list>div>div:last-child span{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#89938f}
+.portal-cancellation-list button{margin-top:8px}
+
+.investigation-progress{margin-bottom:14px}
+.investigation-progress>span,.investigation-progress>strong{display:inline-block;font-size:11px}
+.investigation-progress>strong{float:right}
+.investigation-progress>div{clear:both;height:7px;background:#e3e8e4;border-radius:99px;overflow:hidden;margin-top:7px}
+.investigation-progress i{display:block;height:100%;background:#356555;border-radius:99px}
+.reopen-box{display:flex;gap:8px;align-items:flex-end;margin-top:12px}
+.reopen-box label{flex:1}
+
+.work-list small{display:block;color:#9a754e;margin-top:4px;font-size:9px}
+
+@media(max-width:800px){
+  .billing-customer-row{grid-template-columns:42px 1fr}.billing-customer-row>div:nth-child(3),.billing-status-stack{grid-column:2;justify-content:flex-start}
+  .cancellation-case-kpis{grid-template-columns:1fr 1fr}
+  .portal-cancellation-list>div{grid-template-columns:1fr}.portal-cancellation-list>div>div:last-child{text-align:left}
+}
+@media(max-width:520px){.cancellation-case-kpis{grid-template-columns:1fr}.reopen-box{flex-direction:column;align-items:stretch}}
