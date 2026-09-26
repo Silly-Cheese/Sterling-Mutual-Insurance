@@ -2,6 +2,7 @@ import {useEffect,useState} from "react";
 import {collection,getDocs} from "firebase/firestore";
 import {ArrowRight,BadgeDollarSign,ClipboardCheck,FileText,ShieldAlert,Users,UsersRound,Plus,UserPlus} from "lucide-react";
 import {db} from "../firebase";
+import {can,PERMISSIONS} from "../permissions";
 
 export default function Dashboard({staff,onNavigate}){
   const [stats,setStats]=useState({customers:0,applications:0,policies:0,claims:0,reserves:0,walkIns:0});
@@ -37,14 +38,15 @@ export default function Dashboard({staff,onNavigate}){
 
   return <section className="content dashboard-home">
     <div className="page-heading">
-      <div><div className="eyebrow">STERLING MUTUAL OPERATIONS</div><h1>Good evening, {staff.displayName?.split(" ")[0]}.</h1><p>Everything that needs attention today, in one place.</p></div>
+      <div><div className="eyebrow">{(staff.department||"Sterling Mutual").toUpperCase()} OPERATIONS</div><h1>Good evening, {staff.displayName?.split(" ")[0]}.</h1><p>{staff.role==="receptionist"?"Front-office traffic, appointments, and customer arrivals.":staff.department==="Claims"?"Claims inventory, decisions, and exposure requiring attention.":staff.department==="Underwriting"?"Applications, reviews, and policies waiting to bind.":"Everything that needs your attention today, in one place."}</p></div>
       <div className="secondary"><BadgeDollarSign size={17}/> Claim reserves <span>{"$"+stats.reserves.toLocaleString()}</span></div>
     </div>
 
     <div className="quick-actions">
-      <button onClick={()=>onNavigate?.("Walk-ins")}><span className="quick-icon"><UsersRound size={18}/></span><span><strong>Front desk</strong><small>Check in or help a walk-in</small></span><ArrowRight size={16}/></button>
-      <button onClick={()=>onNavigate?.("Customers")}><span className="quick-icon"><UserPlus size={18}/></span><span><strong>Customer records</strong><small>Create or find a customer</small></span><ArrowRight size={16}/></button>
-      <button onClick={()=>onNavigate?.("Quotes & Applications")}><span className="quick-icon"><Plus size={18}/></span><span><strong>Start a quote</strong><small>Move business into underwriting</small></span><ArrowRight size={16}/></button>
+      {can(staff,PERMISSIONS.WALKIN_READ)&&<button onClick={()=>onNavigate?.("Walk-ins")}><span className="quick-icon"><UsersRound size={18}/></span><span><strong>Front desk</strong><small>Check in or help a walk-in</small></span><ArrowRight size={16}/></button>}
+      {can(staff,PERMISSIONS.CUSTOMER_READ)&&<button onClick={()=>onNavigate?.("Customers")}><span className="quick-icon"><UserPlus size={18}/></span><span><strong>Customer records</strong><small>Find and service customers</small></span><ArrowRight size={16}/></button>}
+      {can(staff,PERMISSIONS.QUOTE_CREATE)&&<button onClick={()=>onNavigate?.("Quotes & Applications")}><span className="quick-icon"><Plus size={18}/></span><span><strong>Start a quote</strong><small>Move business into underwriting</small></span><ArrowRight size={16}/></button>}
+      {can(staff,PERMISSIONS.CLAIM_READ)&&<button onClick={()=>onNavigate?.("Claims")}><span className="quick-icon"><ShieldAlert size={18}/></span><span><strong>Claims</strong><small>Review claim inventory</small></span><ArrowRight size={16}/></button>}
     </div>
 
     <div className="metric-grid">{cards.map(([label,value,sub,Icon,page])=><button className="metric-card metric-button" key={label} onClick={()=>onNavigate?.(page)}><div className="metric-icon"><Icon size={19}/></div><div className="metric-value">{value}</div><div className="metric-label">{label}</div><div className="metric-sub">{sub}</div></button>)}</div>
