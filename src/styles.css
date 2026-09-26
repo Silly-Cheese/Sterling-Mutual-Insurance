@@ -415,3 +415,8 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 .editable-plan-list>div{grid-template-columns:26px minmax(0,1fr) auto}
 .plan-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:720px){.editable-plan-list>div{grid-template-columns:26px 1fr}.plan-actions{grid-column:2;justify-content:flex-start}}
+
+.customer-invoice-layout{display:grid;grid-template-columns:.78fr 1.22fr;gap:14px}
+.customer-invoice-form{position:sticky;top:50px;align-self:start;min-height:0}
+.customer-invoice-list{min-height:0}
+@media(max-width:840px){.customer-invoice-layout{grid-template-columns:1fr}.customer-invoice-form{position:static}}
