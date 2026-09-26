@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {Building2,ChevronDown,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Plus,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
+import {Bell,Building2,CalendarDays,ChevronDown,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Plus,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
 import {createUserWithEmailAndPassword,deleteUser,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
 import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
@@ -14,11 +14,15 @@ import SIU from "./pages/SIU";
 import Billing from "./pages/Billing";
 import Company from "./pages/Company";
 import CustomerPortal from "./pages/CustomerPortal";
+import Appointments from "./pages/Appointments";
+import MyWork from "./pages/MyWork";
+import {can,PERMISSIONS} from "./permissions";
 
 const navGroups=[
-  ["FRONT OFFICE",[["Dashboard",LayoutDashboard],["Walk-ins",UsersRound],["Customers",Users],["Quotes & Applications",ClipboardList]]],
-  ["COVERAGE & SERVICE",[["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards]]],
-  ["MANAGEMENT",[["Company",Building2]]]
+  ["WORK",[["Dashboard",LayoutDashboard,null],["My Work",Bell,null]]],
+  ["FRONT OFFICE",[["Appointments",CalendarDays,PERMISSIONS.APPOINTMENT_READ],["Walk-ins",UsersRound,PERMISSIONS.WALKIN_READ],["Customers",Users,PERMISSIONS.CUSTOMER_READ],["Quotes & Applications",ClipboardList,PERMISSIONS.QUOTE_READ]]],
+  ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
+  ["MANAGEMENT",[["Company",Building2,PERMISSIONS.ADMIN_READ]]]
 ];
 
 function Login(){
@@ -83,7 +87,8 @@ export default function App(){
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
   const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false);
   const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
-  const allNav=navGroups.flatMap(([,items])=>items);
+  const visibleNavGroups=navGroups.map(([group,items])=>[group,items.filter(([, ,permission])=>!permission||can(staff,permission))]).filter(([,items])=>items.length);
+  const allNav=visibleNavGroups.flatMap(([,items])=>items);
   const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,6):[];
 
   async function refreshAccess(u){
@@ -125,7 +130,7 @@ export default function App(){
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
       <div className="sidebar-brand"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div><button className="mobile-close" onClick={()=>setMobileOpen(false)}><X size={20}/></button></div>
-      <nav>{navGroups.map(([group,items])=><div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{items.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>navigate(name)}><Icon size={18}/><span>{name}</span></button>)}</div>)}</nav>
+      <nav>{visibleNavGroups.map(([group,items])=><div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{items.map(([name,Icon])=><button key={name} className={page===name?"nav-item active":"nav-item"} onClick={()=>navigate(name)}><Icon size={18}/><span>{name}</span></button>)}</div>)}</nav>
       <div className="sidebar-user"><div className="avatar">{initials}</div><div><strong>{staff.displayName}</strong><span>{staff.title}</span></div><button title="Sign out" onClick={()=>signOut(auth)}><LogOut size={18}/></button></div>
     </aside>
     <main className="main">
@@ -140,15 +145,15 @@ export default function App(){
         <div className="new-menu-wrap">
           <button className="primary compact topbar-new" onClick={()=>setNewOpen(v=>!v)}><Plus size={16}/> New <ChevronDown size={14}/></button>
           {newOpen&&<div className="new-menu">
-            <button onClick={()=>navigate("Walk-ins",{openNew:true})}><UsersRound size={16}/><span><strong>Walk-in</strong><small>Check someone into the lobby</small></span></button>
-            <button onClick={()=>navigate("Customers",{openNew:true})}><Users size={16}/><span><strong>Customer</strong><small>Create a customer record</small></span></button>
-            <button onClick={()=>navigate("Quotes & Applications",{openNew:true})}><ClipboardList size={16}/><span><strong>Quote</strong><small>Start new business</small></span></button>
-            <button onClick={()=>navigate("Claims",{openNew:true})}><ShieldCheck size={16}/><span><strong>Claim</strong><small>File first notice of loss</small></span></button>
+            {can(staff,PERMISSIONS.APPOINTMENT_MANAGE)&&<button onClick={()=>navigate("Appointments",{openNew:true})}><CalendarDays size={16}/><span><strong>Appointment</strong><small>Schedule a customer visit</small></span></button>}{can(staff,PERMISSIONS.WALKIN_CREATE)&&<button onClick={()=>navigate("Walk-ins",{openNew:true})}><UsersRound size={16}/><span><strong>Walk-in</strong><small>Check someone into the lobby</small></span></button>}
+            {can(staff,PERMISSIONS.CUSTOMER_CREATE)&&<button onClick={()=>navigate("Customers",{openNew:true})}><Users size={16}/><span><strong>Customer</strong><small>Create a customer record</small></span></button>}
+            {can(staff,PERMISSIONS.QUOTE_CREATE)&&<button onClick={()=>navigate("Quotes & Applications",{openNew:true})}><ClipboardList size={16}/><span><strong>Quote</strong><small>Start new business</small></span></button>}
+            {can(staff,PERMISSIONS.CLAIM_CREATE_FOR_CUSTOMER)&&<button onClick={()=>navigate("Claims",{openNew:true})}><ShieldCheck size={16}/><span><strong>Claim</strong><small>File first notice of loss</small></span></button>}
           </div>}
         </div>
         <div className="environment"><span></span> LIVE</div>
       </header>
-      {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}
+      {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}      {page==="My Work"&&<MyWork staff={staff} onNavigate={navigate}/>}      {page==="Appointments"&&<Appointments staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
@@ -157,7 +162,7 @@ export default function App(){
       {page==="SIU"&&<SIU staff={staff}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff}/>}
-      {!["Dashboard","Walk-ins","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
