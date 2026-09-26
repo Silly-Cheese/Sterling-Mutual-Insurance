@@ -48,6 +48,12 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     setNote("");await load();
   }
 
+  async function patchRequest(r,status){
+    await updateDoc(doc(db,"serviceRequests",r.id),{status,updatedAt:serverTimestamp(),updatedBy:staff.id,updatedByName:staff.displayName});
+    await record("service.request."+status,"Service request "+status.replaceAll("_"," "),{requestId:r.id,type:r.type});
+    await load();
+  }
+
   async function setAlert(){
     await updateDoc(doc(db,"customers",customerId),{pinnedAlert:alertText.trim(),updatedAt:serverTimestamp(),updatedBy:staff.id});
     await record("customer.alert.changed",alertText.trim()?"Pinned customer alert updated":"Pinned customer alert removed");
@@ -68,7 +74,7 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
   const balance=useMemo(()=>billing.reduce((sum,t)=>sum+(t.type==="charge"?Number(t.amount||0):["payment","credit","refund"].includes(t.type)?-Number(t.amount||0):0),0),[billing]);
   if(!customer)return <section className="content"><div className="empty-state"><UserRound size={30}/><h3>Customer record unavailable.</h3></div></section>;
 
-  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
+  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["requests","Requests"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
   return <section className="content customer-workspace">
     <button className="back-link workspace-back" onClick={()=>onNavigate?.("Customers")}><ArrowLeft size={15}/> Customers</button>
     {customer.pinnedAlert&&<div className="customer-alert"><AlertTriangle size={17}/><strong>{customer.pinnedAlert}</strong></div>}
@@ -93,6 +99,7 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     {tab==="claims"&&<RecordList items={claims} empty="No claims on this customer." render={c=><><ShieldAlert/><div><strong>{c.claimNumber}</strong><span>{c.lossType} • {c.status}</span></div><div><strong>{money(c.claimedAmount)}</strong><button onClick={()=>onNavigate?.("Claims",{customerId})}>Open</button></div></>}/>}
     {tab==="billing"&&<div className="table-card"><div className="table-toolbar"><strong>Billing history</strong><span>{billing.length} entries</span></div><div className="portal-record-list">{billing.map(t=><div key={t.id}><CreditCard/><div><strong>{t.type}</strong><span>{t.policyNumber} • {t.note||"No note"}</span></div><div><strong>{money(t.amount)}</strong></div></div>)}</div></div>}
     {tab==="documents"&&<RecordList items={documents} empty="No customer documents." render={d=><><FileText/><div><strong>{d.title||d.type||"Document"}</strong><span>{d.policyNumber||"Customer file"}</span></div><div><span>{d.status||"available"}</span></div></>}/>}
+    {tab==="requests"&&<div className="table-card"><div className="table-toolbar"><strong>Customer service requests</strong><span>{serviceRequests.length}</span></div>{serviceRequests.length===0?<div className="empty-state">No service requests from this customer.</div>:<div className="service-request-list">{serviceRequests.map(r=><div key={r.id}><div><strong>{String(r.type||"request").replaceAll("_"," ")}</strong><span>{r.details||"No details provided"}</span></div><span className={"status-pill "+r.status}>{r.status}</span>{can(staff,PERMISSIONS.SERVICE_REQUEST_MANAGE)&&<div className="service-request-actions">{r.status==="submitted"&&<button className="secondary compact" onClick={()=>patchRequest(r,"in_review")}>Start review</button>}{!["completed","denied"].includes(r.status)&&<><button className="primary compact" onClick={()=>patchRequest(r,"completed")}>Complete</button><button className="secondary compact danger-soft" onClick={()=>patchRequest(r,"denied")}>Deny</button></>}</div>}</div>)}</div>}</div>}
     {tab==="notes"&&<div className="notes-layout"><div className="panel">{can(staff,PERMISSIONS.CUSTOMER_NOTES)&&<><label>Internal note<textarea rows="4" value={note} onChange={e=>setNote(e.target.value)} placeholder="Visible to staff only…"/></label><button className="primary compact" onClick={addNote}>Add note</button></>}</div><div className="table-card"><div className="table-toolbar"><strong>Internal notes</strong><span>{notes.length}</span></div><div className="note-list">{notes.map(n=><div key={n.id}><strong>{n.authorName||"Staff"}</strong><p>{n.text}</p><small>{n.createdAt?.toDate?n.createdAt.toDate().toLocaleString():"Recent"}</small></div>)}</div></div></div>}
     {tab==="activity"&&<div className="table-card"><div className="table-toolbar"><strong>Customer timeline</strong><span>{activity.length} events</span></div><div className="timeline">{activity.map(a=><div key={a.id}><span className="timeline-dot"></span><div><strong>{a.summary}</strong><p>{a.type}</p><small>{a.actorName||"System"} • {a.createdAt?.toDate?a.createdAt.toDate().toLocaleString():"Recent"}</small></div></div>)}</div></div>}
     {tab==="portal"&&<div className="panel portal-account-panel"><KeyRound size={26}/><h2>{customer.authUid?"Customer portal is active":"No portal account linked"}</h2><p>{customer.authUid?("Portal email: "+(customer.portalEmail||customer.email||"Not listed")):"Open a customer portal from the customer directory to give this customer online access."}</p></div>}
