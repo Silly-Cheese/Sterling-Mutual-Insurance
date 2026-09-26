@@ -49,8 +49,8 @@ export default function Claims({staff,initialCustomerId,openNew}){
   }
 
   async function referSIU(claim){
-    await addDoc(collection(db,"siuCases"),{claimId:claim.id,claimNumber:claim.claimNumber,customerId:claim.customerId,customerName:claim.customerName,status:"open",riskScore:50,indicators:["Manual referral"],openedBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    await patchClaim(claim,{siuStatus:"referred",stage:"investigation"},"siu.referred","Claim referred to Special Investigations");
+    const siuRef=await addDoc(collection(db,"siuCases"),{claimId:claim.id,claimNumber:claim.claimNumber,policyId:claim.policyId,policyNumber:claim.policyNumber,customerId:claim.customerId,customerName:claim.customerName,status:"open",stage:"triage",priority:claim.severity==="catastrophic"||claim.priority==="high"?"high":"normal",riskScore:50,referralType:"claim_concern",referralReason:"Manual referral from Claims",claimSeverity:claim.severity||"moderate",claimedAmount:Number(claim.claimedAmount||0),coverageStatusAtReferral:claim.coverageStatus,assignedTo:"",assignedName:"",openedBy:staff.id,openedByName:staff.displayName,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    await patchClaim(claim,{siuStatus:"referred",siuCaseId:siuRef.id,stage:"investigation"},"siu.referred","Claim referred to Special Investigations");
   }
 
   return <section className="content">
