@@ -45,7 +45,7 @@ export default function Cancellations({staff,onNavigate}){
   }
   async function reinstate(c){
     const p=policyMap[c.policyId];if(!p)return;
-    await updateDoc(doc(db,"policies",p.id),{status:"active",reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,cancellationStage:null,updatedAt:serverTimestamp()});
+    await updateDoc(doc(db,"policies",p.id),{status:"active",reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,cancellationStage:null,coverageLapse:{from:c.effectiveDate||p.cancellationEffectiveDate||"unknown",to:new Date().toISOString().slice(0,10)},updatedAt:serverTimestamp()});
     await updateDoc(doc(db,"policyCancellations",c.id),{reinstated:true,reinstatedAt:serverTimestamp(),reinstatedBy:staff.id});
     await load();
   }
