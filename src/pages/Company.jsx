@@ -173,6 +173,18 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
 
 function Approvals({approvals,staff,reload,logAdmin}){
   async function decide(a,status){
+    if(status==="approved"){
+      if(a.actionType==="claim_settlement"){
+        await updateDoc(doc(db,"claims",a.recordId),{status:"settled",settlementAmount:Number(a.requestedAmount||0),reserveAmount:0,approvedSettlementBy:staff.id,updatedAt:serverTimestamp()});
+        await addDoc(collection(db,"claimEvents"),{claimId:a.recordId,type:"settlement.approved",summary:"Management approved settlement",details:{amount:Number(a.requestedAmount||0)},actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
+      }
+      if(a.actionType==="large_refund"){
+        const policySnap=await getDocs(collection(db,"policies"));
+        const policy=policySnap.docs.find(d=>d.id===a.recordId);
+        const p=policy?{id:policy.id,...policy.data()}:null;
+        if(p)await addDoc(collection(db,"billingTransactions"),{policyId:p.id,policyNumber:p.policyNumber,customerId:p.customerId,customerName:p.customerName,type:"refund",amount:Number(a.requestedAmount||0),note:"Management-approved refund",status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+      }
+    }
     await updateDoc(doc(db,"approvals",a.id),{status,decidedBy:staff.id,decidedByName:staff.displayName,decidedAt:serverTimestamp()});
     await logAdmin("Approval "+status,{approvalId:a.id,actionType:a.actionType});await reload();
   }
@@ -180,8 +192,16 @@ function Approvals({approvals,staff,reload,logAdmin}){
   return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span>{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<div><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></div>}</div>)}</div>}</div></div>
 }
 
-function Archives({archives}){
-  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Records Archive</strong><span>{archives.length} archived records</span></div>{archives.length===0?<div className="empty-state"><Archive size={28}/><h3>The archive is empty.</h3><p>Archived records and snapshots appear here.</p></div>:<div className="archive-list">{archives.map(a=><div key={a.id}><Archive size={16}/><div><strong>{a.title||a.recordType||"Archived record"}</strong><span>{a.recordType} • {a.reason||"Archived"}</span></div><code>{a.sourceId||a.id}</code></div>)}</div>}</div></div>
+function Archives({archives,staff,reload,logAdmin}){
+  async function restore(a){
+    if(a.recordType==="policy"&&a.sourceId){
+      await updateDoc(doc(db,"policies",a.sourceId),{status:a.snapshot?.status&&a.snapshot.status!=="archived"?a.snapshot.status:"cancelled",restoredAt:serverTimestamp(),restoredBy:staff.id,updatedAt:serverTimestamp()});
+      await updateDoc(doc(db,"archives",a.id),{restored:true,restoredAt:serverTimestamp(),restoredBy:staff.id});
+      await logAdmin("Archived policy restored",{archiveId:a.id,policyId:a.sourceId});
+      await reload();
+    }
+  }
+  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Records Archive</strong><span>{archives.length} archived records</span></div>{archives.length===0?<div className="empty-state"><Archive size={28}/><h3>The archive is empty.</h3><p>Archived records and snapshots appear here.</p></div>:<div className="archive-list">{archives.map(a=><div key={a.id}><Archive size={16}/><div><strong>{a.title||a.recordType||"Archived record"}</strong><span>{a.recordType} • {a.restored?"Restored":a.reason||"Archived"}</span></div><div className="archive-actions"><code>{a.sourceId||a.id}</code>{!a.restored&&can(staff,PERMISSIONS.ARCHIVE_MANAGE)&&a.recordType==="policy"&&<button className="secondary compact" onClick={()=>restore(a)}>Restore</button>}</div></div>)}</div>}</div></div>
 }
 
 function Audit({audit}){
