@@ -9,7 +9,7 @@ const initial={customerId:"",product:"auto",assetType:"vehicle",assetDescription
 function money(v){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0))}
 function quoteNo(){return "Q-"+Date.now().toString().slice(-8)}
 
-export default function QuotesApplications({staff}){
+export default function QuotesApplications({staff,initialCustomerId}){
   const [quotes,setQuotes]=useState([]),[customers,setCustomers]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState(initial),[saving,setSaving]=useState(false);
 
   async function load(){
@@ -18,6 +18,7 @@ export default function QuotesApplications({staff}){
     setCustomers(cSnap.docs.map(d=>({id:d.id,...d.data()})));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{if(initialCustomerId){setForm(v=>({...v,customerId:initialCustomerId}));setOpen(true)}},[initialCustomerId]);
 
   const customerMap=useMemo(()=>Object.fromEntries(customers.map(c=>[c.id,c])),[customers]);
 
