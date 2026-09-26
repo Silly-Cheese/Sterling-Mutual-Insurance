@@ -170,6 +170,33 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+
+    match /siuIndicators/{indicatorId} {
+      allow read: if hasPermission("siu.read");
+      allow create, update: if hasPermission("siu.manage");
+      allow delete: if false;
+    }
+
+    match /siuEvidence/{evidenceId} {
+      allow read: if hasPermission("siu.read");
+      allow create: if hasPermission("siu.evidence");
+      allow update: if hasPermission("siu.evidence") || hasPermission("siu.manage");
+      allow delete: if false;
+    }
+
+    match /siuActions/{actionId} {
+      allow read: if hasPermission("siu.read");
+      allow create: if hasPermission("siu.manage") || hasPermission("siu.assign") || hasPermission("siu.evidence") || hasPermission("siu.finding");
+      allow update, delete: if false;
+    }
+
+    match /siuFindings/{findingId} {
+      allow read: if hasPermission("siu.read") || hasPermission("claim.read");
+      allow create: if hasPermission("siu.finding");
+      allow update: if hasPermission("siu.supervise");
+      allow delete: if false;
+    }
+
     match /billingTransactions/{transactionId} {
       allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("billing.manage") || hasPermission("approval.manage");
