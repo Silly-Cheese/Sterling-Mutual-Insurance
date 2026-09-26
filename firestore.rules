@@ -62,9 +62,18 @@ service cloud.firestore {
                       hasPermission("staff.manage")
                       && request.resource.data.role != "founder"
                     );
-      allow update: if hasPermission("staff.manage")
-                    && resource.data.role != "founder"
-                    && request.resource.data.role != "founder";
+      allow update: if (
+                      hasPermission("staff.manage")
+                      && resource.data.role != "founder"
+                      && request.resource.data.role != "founder"
+                    )
+                    || (
+                      signedIn()
+                      && request.auth.uid == uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        "availability","availabilityUpdatedAt"
+                      ])
+                    );
       allow delete: if false;
     }
 
@@ -162,7 +171,7 @@ service cloud.firestore {
     }
 
     match /billingTransactions/{transactionId} {
-      allow read: if hasPermission("billing.read") || hasPermission("finance.read");
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("billing.manage");
       allow update: if hasPermission("billing.manage");
       allow delete: if false;
@@ -175,9 +184,70 @@ service cloud.firestore {
     }
 
     match /documents/{documentId} {
-      allow read: if hasPermission("document.read") || hasPermission("policy.read");
+      allow read: if hasPermission("document.read") || hasPermission("policy.read") || ownsCustomer(resource.data.customerId);
       allow create, update: if hasPermission("document.manage");
       allow delete: if false;
+    }
+
+
+    match /appointments/{appointmentId} {
+      allow read: if hasPermission("appointment.read");
+      allow create, update: if hasPermission("appointment.manage");
+      allow delete: if false;
+    }
+
+    match /customerNotes/{noteId} {
+      allow read: if hasPermission("customer.notes") || hasPermission("customer.read");
+      allow create: if hasPermission("customer.notes");
+      allow update, delete: if false;
+    }
+
+    match /customerActivity/{activityId} {
+      allow read: if hasPermission("customer.read");
+      allow create: if isActiveStaff();
+      allow update, delete: if false;
+    }
+
+    match /serviceRequests/{requestId} {
+      allow read: if hasPermission("serviceRequest.read")
+                  || ownsCustomer(resource.data.customerId);
+      allow create: if hasPermission("serviceRequest.manage")
+                    || ownsCustomer(request.resource.data.customerId);
+      allow update: if hasPermission("serviceRequest.manage");
+      allow delete: if false;
+    }
+
+    match /policyVersions/{versionId} {
+      allow read: if hasPermission("policy.read");
+      allow create: if hasPermission("policy.issue") || hasPermission("policy.update") || hasPermission("policy.endorse") || hasPermission("policy.renew");
+      allow update, delete: if false;
+    }
+
+    match /endorsements/{endorsementId} {
+      allow read: if hasPermission("policy.read");
+      allow create: if hasPermission("policy.endorse") || hasPermission("policy.update");
+      allow update: if hasPermission("policy.endorse") || hasPermission("policy.update");
+      allow delete: if false;
+    }
+
+    match /claimPayments/{paymentId} {
+      allow read: if hasPermission("claim.read") || ownsCustomer(resource.data.customerId);
+      allow create: if hasPermission("claim.payment");
+      allow update: if hasPermission("claim.payment");
+      allow delete: if false;
+    }
+
+    match /approvals/{approvalId} {
+      allow read: if hasPermission("approval.read");
+      allow create: if isActiveStaff();
+      allow update: if hasPermission("approval.manage");
+      allow delete: if false;
+    }
+
+    match /archives/{archiveId} {
+      allow read: if hasPermission("archive.read");
+      allow create, update: if hasPermission("archive.manage") || hasPermission("policy.update");
+      allow delete: if hasPermission("archive.manage");
     }
 
     match /auditLogs/{logId} {
