@@ -12,6 +12,7 @@ import Policies from "./pages/Policies";
 import Claims from "./pages/Claims";
 import SIU from "./pages/SIU";
 import Billing from "./pages/Billing";
+import Cancellations from "./pages/Cancellations";
 import Company from "./pages/Company";
 import CustomerPortal from "./pages/CustomerPortal";
 import CustomerWorkspace from "./pages/CustomerWorkspace";
@@ -22,7 +23,7 @@ import {can,PERMISSIONS} from "./permissions";
 const navGroups=[
   ["WORK",[["Dashboard",LayoutDashboard,null],["My Work",Bell,null]]],
   ["FRONT OFFICE",[["Appointments",CalendarDays,PERMISSIONS.APPOINTMENT_READ],["Walk-ins",UsersRound,PERMISSIONS.WALKIN_READ],["Customers",Users,PERMISSIONS.CUSTOMER_READ],["Quotes & Applications",ClipboardList,PERMISSIONS.QUOTE_READ]]],
-  ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
+  ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Cancellations",ShieldCheck,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
   ["MANAGEMENT",[["Company",Building2,null]]]
 ];
 
@@ -203,12 +204,12 @@ export default function App(){
       {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}
       {page==="Customers"&&<Customers staff={staff} onNavigate={navigate} openNew={pageContext?.openNew}/>}      {page==="Customer Workspace"&&<CustomerWorkspace staff={staff} customerId={pageContext?.customerId} onNavigate={navigate}/>}
       {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
-      {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}
+      {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}      {page==="Cancellations"&&<Cancellations staff={staff} onNavigate={navigate}/>}
       {page==="Claims"&&<Claims staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="SIU"&&<SIU staff={staff}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff}/>}
-      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
+      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING IN PART 3–4</div><h1>{page}</h1><p>This workspace is reserved for the next build phase.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions and layout are already in place.</p></div></section>}
     </main>
   </div>
 }
