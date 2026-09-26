@@ -35,7 +35,9 @@ export default function Claims({staff,initialCustomerId,openNew}){
         status:"open",stage:"intake",coverageStatus:"pending",liabilityStatus:"undetermined",reserveCategories:{property:0,bodilyInjury:0,rental:0,legal:0,other:0},reserveAmount:0,settlementAmount:0,siuStatus:"none",assignedTo:"",assignedName:"",
         createdBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
       });
-      await addEvent(ref.id,"claim.created","Claim filed",{method:form.reportMethod});setOpen(false);setForm(empty);await load();
+      await addEvent(ref.id,"claim.created","Claim filed",{method:form.reportMethod});
+      if(form.severity==="catastrophic"&&!can(staff,PERMISSIONS.APPROVAL_MANAGE))await addDoc(collection(db,"approvals"),{actionType:"catastrophic_claim_review",title:"Catastrophic claim review",summary:(policy?.customerName||"Customer")+" • catastrophic severity claim",recordId:ref.id,customerId:policy?.customerId||"",status:"pending",requestedBy:staff.id,requestedByName:staff.displayName,createdAt:serverTimestamp()});
+      setOpen(false);setForm(empty);await load();
     }finally{setSaving(false)}
   }
 
@@ -136,7 +138,10 @@ function ClaimDetail({claim,staff,staffList,payments,contacts,estimates,events,p
     const coverageResolved=["approved","denied"].includes(claim.coverageStatus);
     const liabilityResolved=claim.lossType!=="liability"||["accepted","partial","denied","not_applicable"].includes(claim.liabilityStatus);
     const financialResolved=claim.coverageStatus==="denied"||claim.status==="settled"||Number(claim.claimedAmount||0)===0;
-    if(!coverageResolved||!liabilityResolved||!financialResolved){alert("This claim is not ready to close. Resolve coverage, liability (when applicable), and the financial outcome first.");return}
+    const siuResolved=claim.siuStatus!=="referred";
+    const coverageItemsResolved=coverages.every(x=>x.status!=="pending");
+    const paymentsResolved=payments.every(p=>!["pending"].includes(p.status));
+    if(!coverageResolved||!liabilityResolved||!financialResolved||!siuResolved||!coverageItemsResolved||!paymentsResolved){alert("This claim is not ready to close. Review the Closure tab for unresolved requirements.");return}
     await patchClaim(claim,{status:"closed",stage:"closed",closedAt:serverTimestamp(),closedBy:staff.id,reserveAmount:0},"claim.closed","Claim closed");
   }
 
@@ -159,7 +164,10 @@ function ClaimDetail({claim,staff,staffList,payments,contacts,estimates,events,p
     ["Coverage resolved",["approved","denied"].includes(claim.coverageStatus)],
     ["Liability resolved",claim.lossType!=="liability"||["accepted","partial","denied","not_applicable"].includes(claim.liabilityStatus)],
     ["Financial outcome resolved",claim.coverageStatus==="denied"||claim.status==="settled"||Number(claim.claimedAmount||0)===0],
-    ["Reserve cleared",Number(claim.reserveAmount||0)===0||claim.status==="settled"]
+    ["Reserve cleared",Number(claim.reserveAmount||0)===0||claim.status==="settled"],
+    ["Coverage items resolved",coverages.every(x=>x.status!=="pending")],
+    ["SIU resolved",claim.siuStatus!=="referred"],
+    ["Payments resolved",payments.every(p=>p.status!=="pending")]
   ];
 
   return <div className="modal-backdrop"><div className="modal claim-detail"><div className="modal-head"><div><div className="eyebrow">CLAIM FILE</div><h2>{claim.claimNumber}</h2><p>{claim.customerName} • {claim.policyNumber}</p></div><button onClick={onClose}><X/></button></div>
