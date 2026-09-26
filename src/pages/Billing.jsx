@@ -132,7 +132,8 @@ export default function Billing({staff,initialPolicyId}){
     if(stage==="cancellation_pending"){
       const effective=delinq.graceEnds||addDays(today(),10);
       Object.assign(patch,{gracePeriodEnds:effective});
-      await addDoc(collection(db,"policyCancellations"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,source:"billing",reasonCategory:"nonpayment",reason:delinq.reason,stage:"notice_pending",noticeDate:today(),effectiveDate:effective,balanceSnapshot:invoiceBalance(selected),status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+      const cancellationRef=await addDoc(collection(db,"policyCancellations"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,source:"billing",initiatedByType:"billing",reasonCategory:"nonpayment",reason:delinq.reason,stage:"notice_pending",noticeDate:today(),effectiveDate:effective,balanceSnapshot:invoiceBalance(selected),status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+      Object.assign(patch,{status:"cancellation_pending",cancellationCaseId:cancellationRef.id,cancellationStage:"notice_pending",cancellationEffectiveDate:effective,cancellationReason:delinq.reason,cancellationReasonCategory:"nonpayment"});
       await addDoc(collection(db,"documents"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,type:"cancellation_notice",title:"Notice of Pending Cancellation",status:"available",effectiveDate:effective,createdAt:serverTimestamp(),createdBy:staff.id});
     }
     await updateDoc(doc(db,"policies",selected.id),patch);
@@ -142,7 +143,7 @@ export default function Billing({staff,initialPolicyId}){
 
   async function cureAccount(){
     if(!selected)return;
-    await updateDoc(doc(db,"policies",selected.id),{billingStatus:"current",delinquentSince:null,gracePeriodEnds:null,updatedAt:serverTimestamp(),billingUpdatedBy:staff.id});
+    await updateDoc(doc(db,"policies",selected.id),{billingStatus:"current",status:selected.status==="cancellation_pending"?"active":selected.status,delinquentSince:null,gracePeriodEnds:null,cancellationCaseId:null,cancellationStage:null,cancellationEffectiveDate:null,cancellationReason:null,updatedAt:serverTimestamp(),billingUpdatedBy:staff.id});
     const cases=(await safe("policyCancellations")).filter(c=>c.policyId===selected.id&&c.status==="open"&&c.source==="billing");
     for(const c of cases)await updateDoc(doc(db,"policyCancellations",c.id),{status:"rescinded",stage:"rescinded",rescindedAt:serverTimestamp(),rescindedBy:staff.id,rescindReason:"Billing account cured"});
     await logEvent(selected,"delinquency.cured","Billing account returned to current");
