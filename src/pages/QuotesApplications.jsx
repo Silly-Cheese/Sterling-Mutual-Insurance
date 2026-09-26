@@ -9,7 +9,7 @@ const initial={customerId:"",product:"auto",assetType:"vehicle",assetDescription
 function money(v){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0))}
 function quoteNo(){return "Q-"+Date.now().toString().slice(-8)}
 
-export default function QuotesApplications({staff,initialCustomerId}){
+export default function QuotesApplications({staff,initialCustomerId,openNew}){
   const [quotes,setQuotes]=useState([]),[customers,setCustomers]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState(initial),[saving,setSaving]=useState(false);
 
   async function load(){
@@ -18,7 +18,7 @@ export default function QuotesApplications({staff,initialCustomerId}){
     setCustomers(cSnap.docs.map(d=>({id:d.id,...d.data()})));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
-  useEffect(()=>{if(initialCustomerId){setForm(v=>({...v,customerId:initialCustomerId}));setOpen(true)}},[initialCustomerId]);
+  useEffect(()=>{if(initialCustomerId){setForm(v=>({...v,customerId:initialCustomerId}));setOpen(true)}else if(openNew)setOpen(true)},[initialCustomerId,openNew]);
 
   const customerMap=useMemo(()=>Object.fromEntries(customers.map(c=>[c.id,c])),[customers]);
 
@@ -58,6 +58,7 @@ export default function QuotesApplications({staff,initialCustomerId}){
   }
 
   return <section className="content">
+    <div className="workflow-ribbon"><span>Intake</span><span>Customer</span><strong>Quote</strong><span>Underwriting</span><span>Policy</span><span>Service</span></div>
     <div className="page-heading"><div><div className="eyebrow">SALES + UNDERWRITING</div><h1>Quotes & Applications</h1><p>Build coverage, submit applications, and move business through underwriting.</p></div>{can(staff,PERMISSIONS.QUOTE_CREATE)&&<button className="primary compact" onClick={()=>setOpen(true)}><Plus size={17}/> New quote</button>}</div>
 
     <div className="metric-grid">
