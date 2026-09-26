@@ -7,7 +7,7 @@ import {can,PERMISSIONS} from "../permissions";
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
 
 export default function CustomerWorkspace({staff,customerId,onNavigate}){
-  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[notes,setNotes]=useState([]),[activity,setActivity]=useState([]),[serviceRequests,setServiceRequests]=useState([]),[communications,setCommunications]=useState([]),[staffList,setStaffList]=useState([]),[tab,setTab]=useState("overview"),[note,setNote]=useState(""),[alertText,setAlertText]=useState(""),[comm,setComm]=useState({direction:"outbound",channel:"phone",subject:"",summary:""});
+  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[documentRequests,setDocumentRequests]=useState([]),[holds,setHolds]=useState([]),[notes,setNotes]=useState([]),[activity,setActivity]=useState([]),[serviceRequests,setServiceRequests]=useState([]),[communications,setCommunications]=useState([]),[staffList,setStaffList]=useState([]),[tab,setTab]=useState("overview"),[note,setNote]=useState(""),[alertText,setAlertText]=useState(""),[holdForm,setHoldForm]=useState({severity:"warning",reason:"",expiresOn:""}),[docRequest,setDocRequest]=useState({title:"",description:"",dueDate:""}),[comm,setComm]=useState({direction:"outbound",channel:"phone",subject:"",summary:""});
 
   async function safeQuery(name,field,value){
     try{const s=await getDocs(query(collection(db,name),where(field,"==",value)));return s.docs.map(d=>({id:d.id,...d.data()}))}catch{return []}
@@ -16,12 +16,12 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     const snap=await getDoc(doc(db,"customers",customerId));
     if(!snap.exists())return;
     const c={id:snap.id,...snap.data()};setCustomer(c);
-    const [p,q,cl,b,inv,can,d,n,a,sr,com,staffSnap]=await Promise.all([
+    const [p,q,cl,b,inv,can,d,dr,h,n,a,sr,com,staffSnap]=await Promise.all([
       safeQuery("policies","customerId",customerId),safeQuery("quotes","customerId",customerId),safeQuery("claims","customerId",customerId),
-      safeQuery("billingTransactions","customerId",customerId),safeQuery("billingInvoices","customerId",customerId),safeQuery("policyCancellations","customerId",customerId),safeQuery("documents","customerId",customerId),safeQuery("customerNotes","customerId",customerId),
+      safeQuery("billingTransactions","customerId",customerId),safeQuery("billingInvoices","customerId",customerId),safeQuery("policyCancellations","customerId",customerId),safeQuery("documents","customerId",customerId),safeQuery("documentRequests","customerId",customerId),safeQuery("customerHolds","customerId",customerId),safeQuery("customerNotes","customerId",customerId),
       safeQuery("customerActivity","customerId",customerId),safeQuery("serviceRequests","customerId",customerId),safeQuery("customerCommunications","customerId",customerId),getDocs(collection(db,"staff")).catch(()=>null)
     ]);
-    setPolicies(p);setQuotes(q);setClaims(cl);setBilling(b);setInvoices(inv);setCancellations(can);setDocuments(d);setNotes(n.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setActivity(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setServiceRequests(sr);setCommunications(com.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
+    setPolicies(p);setQuotes(q);setClaims(cl);setBilling(b);setInvoices(inv);setCancellations(can);setDocuments(d);setDocumentRequests(dr.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setHolds(h.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setNotes(n.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setActivity(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setServiceRequests(sr);setCommunications(com.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
     if(staffSnap)setStaffList(staffSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.status==="active"));
     try{
       const recent=JSON.parse(localStorage.getItem("smi-recent-customers")||"[]").filter(x=>x.id!==customerId);
@@ -61,6 +61,51 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     setComm({direction:"outbound",channel:"phone",subject:"",summary:""});await load();
   }
 
+  async function addHold(){
+    if(!holdForm.reason.trim())return;
+    await addDoc(collection(db,"customerHolds"),{
+      customerId,
+      severity:holdForm.severity,
+      reason:holdForm.reason.trim(),
+      expiresOn:holdForm.expiresOn||null,
+      status:"active",
+      createdBy:staff.id,
+      createdByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+    await record("customer.hold.added","Customer hold added",{severity:holdForm.severity,reason:holdForm.reason.trim()});
+    setHoldForm({severity:"warning",reason:"",expiresOn:""});await load();
+  }
+
+  async function releaseHold(h){
+    await updateDoc(doc(db,"customerHolds",h.id),{status:"released",releasedAt:serverTimestamp(),releasedBy:staff.id,releasedByName:staff.displayName});
+    await record("customer.hold.released","Customer hold released",{holdId:h.id,reason:h.reason});
+    await load();
+  }
+
+  async function createDocumentRequest(){
+    if(!docRequest.title.trim())return;
+    await addDoc(collection(db,"documentRequests"),{
+      customerId,
+      customerName:customer.displayName,
+      title:docRequest.title.trim(),
+      description:docRequest.description.trim(),
+      dueDate:docRequest.dueDate||null,
+      status:"requested",
+      requestedBy:staff.id,
+      requestedByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+    await record("document.request.created","Document requested from customer",{title:docRequest.title.trim(),dueDate:docRequest.dueDate||null});
+    setDocRequest({title:"",description:"",dueDate:""});await load();
+  }
+
+  async function markDocumentRequest(r,status){
+    await updateDoc(doc(db,"documentRequests",r.id),{status,updatedAt:serverTimestamp(),updatedBy:staff.id,updatedByName:staff.displayName});
+    await record("document.request."+status,"Document request "+status.replaceAll("_"," "),{requestId:r.id,title:r.title});
+    await load();
+  }
+
   async function setAlert(){
     await updateDoc(doc(db,"customers",customerId),{pinnedAlert:alertText.trim(),updatedAt:serverTimestamp(),updatedBy:staff.id});
     await record("customer.alert.changed",alertText.trim()?"Pinned customer alert updated":"Pinned customer alert removed");
@@ -81,10 +126,10 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
   const balance=useMemo(()=>billing.reduce((sum,t)=>sum+(t.type==="charge"?Number(t.amount||0):["payment","credit","refund"].includes(t.type)?-Number(t.amount||0):0),0),[billing]);
   if(!customer)return <section className="content"><div className="empty-state"><UserRound size={30}/><h3>Customer record unavailable.</h3></div></section>;
 
-  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["requests","Requests"],["communications","Communications"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
+  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["document_requests","Document Requests"],["requests","Requests"],["communications","Communications"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
   return <section className="content customer-workspace">
     <button className="back-link workspace-back" onClick={()=>onNavigate?.("Customers")}><ArrowLeft size={15}/> Customers</button>
-    {customer.pinnedAlert&&<div className="customer-alert"><AlertTriangle size={17}/><strong>{customer.pinnedAlert}</strong></div>}
+    {customer.pinnedAlert&&<div className="customer-alert"><AlertTriangle size={17}/><strong>{customer.pinnedAlert}</strong></div>}{holds.some(h=>h.status==="active")&&<div className="customer-hold-banner"><AlertTriangle size={17}/><div><strong>Account hold active</strong><span>{holds.filter(h=>h.status==="active").map(h=>h.reason).join(" • ")}</span></div></div>}
     <div className="customer-risk-strip">
       {cancellations.some(x=>x.status==="open")&&<button onClick={()=>onNavigate?.("Cancellations")}><AlertTriangle size={14}/><span><strong>Cancellation pending</strong><small>{cancellations.filter(x=>x.status==="open").length} open case(s)</small></span></button>}
       {invoices.some(i=>!["paid","void"].includes(i.status)&&i.dueDate<new Date().toISOString().slice(0,10))&&<button onClick={()=>onNavigate?.("Billing",{policyId:policies[0]?.id})}><CreditCard size={14}/><span><strong>Past-due billing</strong><small>{money(balance)} open balance</small></span></button>}
@@ -104,6 +149,7 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
       <article className="panel customer-overview-card"><div className="panel-head"><div><div className="eyebrow">RELATIONSHIP</div><h2>Customer profile</h2></div></div><div className="record-summary"><div><span>Email</span><strong>{customer.email||"Not provided"}</strong></div><div><span>Phone</span><strong>{customer.phone||"Not provided"}</strong></div><div><span>Source</span><strong>{customer.source==="walk_in"?"Walk-in":"Direct"}</strong></div><div><span>Portal</span><strong>{customer.authUid?"Active":"Not opened"}</strong></div></div>{can(staff,PERMISSIONS.CUSTOMER_UPDATE)&&<label className="owner-select">Primary agent / owner<select value={customer.ownerId||""} onChange={e=>assignOwner(e.target.value)}><option value="">Unassigned</option>{staffList.map(s=><option key={s.id} value={s.id}>{s.displayName} — {s.title}</option>)}</select></label>}</article>
       <article className="panel"><div className="panel-head"><div><div className="eyebrow">SERVICE</div><h2>Open requests</h2></div><span className="status-pill">{serviceRequests.filter(r=>!["completed","denied"].includes(r.status)).length}</span></div>{serviceRequests.length===0?<div className="queue-empty"><Bell size={28}/><h3>No customer requests.</h3></div>:<div className="mini-record-list">{serviceRequests.slice(0,6).map(r=><div key={r.id}><strong>{String(r.type||"request").replaceAll("_"," ")}</strong><span>{r.status}</span></div>)}</div>}</article>
       <article className="panel"><div className="panel-head"><div><div className="eyebrow">ALERT</div><h2>Pinned account alert</h2></div></div>{can(staff,PERMISSIONS.CUSTOMER_ALERTS)?<><textarea rows="3" value={alertText||customer.pinnedAlert||""} onChange={e=>setAlertText(e.target.value)} placeholder="Important warning or servicing instruction…"/><button className="secondary compact" onClick={setAlert}>Save alert</button></>:<p>{customer.pinnedAlert||"No alert"}</p>}</article>
+      <article className="panel customer-holds-panel"><div className="panel-head"><div><div className="eyebrow">ACCOUNT HOLDS</div><h2>Service restrictions</h2></div><span className="status-pill">{holds.filter(h=>h.status==="active").length} active</span></div>{can(staff,PERMISSIONS.CUSTOMER_HOLD_MANAGE)&&<><div className="two-col"><label>Severity<select value={holdForm.severity} onChange={e=>setHoldForm({...holdForm,severity:e.target.value})}><option value="info">Informational</option><option value="warning">Warning</option><option value="critical">Critical</option></select></label><label>Expires<input type="date" value={holdForm.expiresOn} onChange={e=>setHoldForm({...holdForm,expiresOn:e.target.value})}/></label></div><label>Reason<input value={holdForm.reason} onChange={e=>setHoldForm({...holdForm,reason:e.target.value})} placeholder="Why should staff stop or verify service?"/></label><button className="secondary compact" onClick={addHold}>Add hold</button></>}<div className="hold-list">{holds.filter(h=>h.status==="active").map(h=><div className={"hold-item "+h.severity} key={h.id}><div><strong>{h.reason}</strong><span>{h.createdByName||"Staff"}{h.expiresOn?" • expires "+h.expiresOn:""}</span></div>{can(staff,PERMISSIONS.CUSTOMER_HOLD_MANAGE)&&<button className="link-button" onClick={()=>releaseHold(h)}>Release</button>}</div>)}</div></article>
       <article className="panel"><div className="panel-head"><div><div className="eyebrow">RECENT ACTIVITY</div><h2>Latest events</h2></div></div>{activity.length===0?<div className="queue-empty"><MessageSquare size={28}/><h3>No recorded activity yet.</h3></div>:<div className="activity-mini">{activity.slice(0,6).map(x=><div key={x.id}><span></span><div><strong>{x.summary}</strong><small>{x.actorName||"System"}</small></div></div>)}</div>}</article>
     </div>}
 
@@ -112,6 +158,8 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     {tab==="claims"&&<RecordList items={claims} empty="No claims on this customer." render={c=><><ShieldAlert/><div><strong>{c.claimNumber}</strong><span>{c.lossType} • {c.status}</span></div><div><strong>{money(c.claimedAmount)}</strong><button onClick={()=>onNavigate?.("Claims",{customerId})}>Open</button></div></>}/>}
     {tab==="billing"&&<div className="table-card"><div className="table-toolbar"><strong>Billing history</strong><span>{billing.length} entries</span></div><div className="portal-record-list">{billing.map(t=><div key={t.id}><CreditCard/><div><strong>{t.type}</strong><span>{t.policyNumber} • {t.note||"No note"}</span></div><div><strong>{money(t.amount)}</strong></div></div>)}</div></div>}
     {tab==="documents"&&<RecordList items={documents} empty="No customer documents." render={d=><><FileText/><div><strong>{d.title||d.type||"Document"}</strong><span>{d.policyNumber||"Customer file"}</span></div><div><span>{d.status||"available"}</span></div></>}/>}
+    {tab==="document_requests"&&<div className="notes-layout"><div className="panel"><div className="eyebrow">REQUEST DOCUMENT</div><h2>Ask customer for documentation</h2><label>Document title<input value={docRequest.title} onChange={e=>setDocRequest({...docRequest,title:e.target.value})} placeholder="Example: Proof of ownership"/></label><label>Description<textarea rows="4" value={docRequest.description} onChange={e=>setDocRequest({...docRequest,description:e.target.value})} placeholder="What should the customer provide?"/></label><label>Due date<input type="date" value={docRequest.dueDate} onChange={e=>setDocRequest({...docRequest,dueDate:e.target.value})}/></label>{can(staff,PERMISSIONS.DOCUMENT_REQUEST_MANAGE)&&<button className="primary compact" onClick={createDocumentRequest}>Send document request</button>}</div><div className="table-card"><div className="table-toolbar"><strong>Document requests</strong><span>{documentRequests.length}</span></div><div className="service-request-list">{documentRequests.map(r=><div key={r.id}><div><strong>{r.title}</strong><span>{r.description||"No description"}{r.dueDate?" • due "+r.dueDate:""}</span></div><span className={"status-pill "+r.status}>{r.status}</span>{can(staff,PERMISSIONS.DOCUMENT_REQUEST_MANAGE)&&!["received","cancelled"].includes(r.status)&&<div className="service-request-actions"><button className="secondary compact" onClick={()=>markDocumentRequest(r,"received")}>Mark received</button><button className="secondary compact danger-soft" onClick={()=>markDocumentRequest(r,"cancelled")}>Cancel</button></div>}</div>)}</div></div></div>}
+
     {tab==="requests"&&<div className="table-card"><div className="table-toolbar"><strong>Customer service requests</strong><span>{serviceRequests.length}</span></div>{serviceRequests.length===0?<div className="empty-state">No service requests from this customer.</div>:<div className="service-request-list">{serviceRequests.map(r=><div key={r.id}><div><strong>{String(r.type||"request").replaceAll("_"," ")}</strong><span>{r.details||"No details provided"}</span></div><span className={"status-pill "+r.status}>{r.status}</span>{can(staff,PERMISSIONS.SERVICE_REQUEST_MANAGE)&&<div className="service-request-actions">{r.status==="submitted"&&<button className="secondary compact" onClick={()=>patchRequest(r,"in_review")}>Start review</button>}{!["completed","denied"].includes(r.status)&&<><button className="primary compact" onClick={()=>patchRequest(r,"completed")}>Complete</button><button className="secondary compact danger-soft" onClick={()=>patchRequest(r,"denied")}>Deny</button></>}</div>}</div>)}</div>}</div>}
     {tab==="communications"&&<div className="notes-layout"><div className="panel"><div className="eyebrow">CORRESPONDENCE</div><h2>Log communication</h2><div className="two-col"><label>Direction<select value={comm.direction} onChange={e=>setComm({...comm,direction:e.target.value})}><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label><label>Channel<select value={comm.channel} onChange={e=>setComm({...comm,channel:e.target.value})}><option value="phone">Phone</option><option value="email">Email</option><option value="letter">Letter</option><option value="in_person">In person</option><option value="portal">Portal</option></select></label></div><label>Subject<input value={comm.subject} onChange={e=>setComm({...comm,subject:e.target.value})}/></label><label>Summary<textarea rows="4" value={comm.summary} onChange={e=>setComm({...comm,summary:e.target.value})}/></label>{can(staff,PERMISSIONS.CUSTOMER_COMMUNICATION)&&<button className="primary compact" onClick={addCommunication}>Log communication</button>}</div><div className="table-card"><div className="table-toolbar"><strong>Communication history</strong><span>{communications.length}</span></div><div className="communication-list">{communications.map(x=><div key={x.id}><MessageSquare size={15}/><div><strong>{x.direction} • {x.channel}{x.subject?" • "+x.subject:""}</strong><span>{x.summary}</span><small>{x.createdByName||"Staff"} • {x.createdAt?.toDate?x.createdAt.toDate().toLocaleString():"Recorded"}</small></div></div>)}</div></div></div>}
     {tab==="notes"&&<div className="notes-layout"><div className="panel">{can(staff,PERMISSIONS.CUSTOMER_NOTES)&&<><label>Internal note<textarea rows="4" value={note} onChange={e=>setNote(e.target.value)} placeholder="Visible to staff only…"/></label><button className="primary compact" onClick={addNote}>Add note</button></>}</div><div className="table-card"><div className="table-toolbar"><strong>Internal notes</strong><span>{notes.length}</span></div><div className="note-list">{notes.map(n=><div key={n.id}><strong>{n.authorName||"Staff"}</strong><p>{n.text}</p><small>{n.createdAt?.toDate?n.createdAt.toDate().toLocaleString():"Recent"}</small></div>)}</div></div></div>}
