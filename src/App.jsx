@@ -13,6 +13,7 @@ import Claims from "./pages/Claims";
 import SIU from "./pages/SIU";
 import Billing from "./pages/Billing";
 import Company from "./pages/Company";
+import CustomerPortal from "./pages/CustomerPortal";
 
 const navGroups=[
   ["FRONT OFFICE",[["Dashboard",LayoutDashboard],["Walk-ins",UsersRound],["Customers",Users],["Quotes & Applications",ClipboardList]]],
@@ -78,7 +79,7 @@ function Login(){
 }
 
 export default function App(){
-  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
+  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
   const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false);
   const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
@@ -86,19 +87,21 @@ export default function App(){
   const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,6):[];
 
   async function refreshAccess(u){
-    if(!u){setStaff(null);setAccount(null);setBootstrapState(null);return}
-    const [staffSnap,accountSnap,bootSnap]=await Promise.all([
+    if(!u){setStaff(null);setAccount(null);setCustomerAccount(null);setBootstrapState(null);return}
+    const [staffSnap,accountSnap,customerAccountSnap,bootSnap]=await Promise.all([
       getDoc(doc(db,"staff",u.uid)),
       getDoc(doc(db,"accounts",u.uid)),
+      getDoc(doc(db,"customerAccounts",u.uid)),
       getDoc(doc(db,"system","bootstrap"))
     ]);
     setStaff(staffSnap.exists()?{id:staffSnap.id,...staffSnap.data()}:null);
     setAccount(accountSnap.exists()?{id:accountSnap.id,...accountSnap.data()}:null);
+    setCustomerAccount(customerAccountSnap.exists()?{id:customerAccountSnap.id,...customerAccountSnap.data()}:null);
     setBootstrapState(bootSnap.exists()?bootSnap.data():null);
   }
 
   useEffect(()=>onAuthStateChanged(auth,async u=>{
-    setUser(u); setStaff(null); setAccount(null); setBootstrapState(null);
+    setUser(u); setStaff(null); setAccount(null); setCustomerAccount(null); setBootstrapState(null);
     if(u)await refreshAccess(u);
     setLoading(false);
   }),[]);
@@ -107,7 +110,8 @@ export default function App(){
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
   if(!user)return <Login/>;
-  if(!staff&&!bootstrapState&&!account)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
+  if(customerAccount&&!staff)return <CustomerPortal user={user} customerAccount={customerAccount} onSignOut={()=>signOut(auth)}/>;
+  if(!staff&&!bootstrapState&&!account&&!customerAccount)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
   if(!staff)return <div className="auth-shell"><div className="auth-card pending-card">
     <div className="pending-icon"><ShieldCheck size={28}/></div>
     <div className="eyebrow">ACCOUNT CREATED</div>
