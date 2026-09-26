@@ -128,7 +128,7 @@ service cloud.firestore {
     match /policies/{policyId} {
       allow read: if hasPermission("policy.read") || hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("policy.issue");
-      allow update: if hasPermission("policy.update")
+      allow update: if hasPermission("policy.update") || hasPermission("policy.endorse") || hasPermission("policy.renew")
         || (
           hasPermission("billing.manage")
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -147,7 +147,7 @@ service cloud.firestore {
     match /claims/{claimId} {
       allow read: if hasPermission("claim.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("claim.createForCustomer");
-      allow update: if hasPermission("claim.update") || hasPermission("claim.assign") || hasPermission("claim.reserve") || hasPermission("claim.decide") || hasPermission("claim.settle") || hasPermission("claim.close");
+      allow update: if hasPermission("claim.update") || hasPermission("claim.assign") || hasPermission("claim.reserve") || hasPermission("claim.decide") || hasPermission("claim.settle") || hasPermission("claim.close") || hasPermission("approval.manage");
       allow delete: if false;
     }
 
@@ -172,7 +172,7 @@ service cloud.firestore {
 
     match /billingTransactions/{transactionId} {
       allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
-      allow create: if hasPermission("billing.manage");
+      allow create: if hasPermission("billing.manage") || hasPermission("approval.manage");
       allow update: if hasPermission("billing.manage");
       allow delete: if false;
     }
