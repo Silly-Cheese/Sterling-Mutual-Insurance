@@ -178,6 +178,10 @@ function Approvals({approvals,staff,reload,logAdmin}){
         await updateDoc(doc(db,"claims",a.recordId),{status:"settled",settlementAmount:Number(a.requestedAmount||0),reserveAmount:0,approvedSettlementBy:staff.id,updatedAt:serverTimestamp()});
         await addDoc(collection(db,"claimEvents"),{claimId:a.recordId,type:"settlement.approved",summary:"Management approved settlement",details:{amount:Number(a.requestedAmount||0)},actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
       }
+      if(a.actionType==="large_reserve"){
+        await updateDoc(doc(db,"claims",a.recordId),{reserveAmount:Number(a.requestedAmount||0),reserveApprovedBy:staff.id,reserveApprovedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+        await addDoc(collection(db,"claimEvents"),{claimId:a.recordId,type:"reserve.approved",summary:"Management approved claim reserve",details:{amount:Number(a.requestedAmount||0)},actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
+      }
       if(a.actionType==="large_refund"){
         const policySnap=await getDocs(collection(db,"policies"));
         const policy=policySnap.docs.find(d=>d.id===a.recordId);
