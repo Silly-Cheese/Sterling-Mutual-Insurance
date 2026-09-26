@@ -10,7 +10,7 @@ const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDa
 const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().slice(-7);
 
 export default function Billing({staff,initialPolicyId}){
-  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[customerTab,setCustomerTab]=useState("overview"),[tab,setTab]=useState("overview"),[invoiceSearch,setInvoiceSearch]=useState(""),[invoiceFilter,setInvoiceFilter]=useState("all"),[paymentSearch,setPaymentSearch]=useState(""),[paymentFilter,setPaymentFilter]=useState("all");
+  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[credits,setCredits]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[customerTab,setCustomerTab]=useState("overview"),[tab,setTab]=useState("overview"),[invoiceSearch,setInvoiceSearch]=useState(""),[invoiceFilter,setInvoiceFilter]=useState("all"),[paymentSearch,setPaymentSearch]=useState(""),[paymentFilter,setPaymentFilter]=useState("all");
   const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState(""),[allocationMode,setAllocationMode]=useState("auto"),[allocationInvoiceId,setAllocationInvoiceId]=useState("");
   const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"}),[customerInvoiceForm,setCustomerInvoiceForm]=useState({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
   const [planForm,setPlanForm]=useState({totalAmount:"",installments:"3",firstDueDate:""}),[editingPlan,setEditingPlan]=useState(null);
@@ -18,8 +18,8 @@ export default function Billing({staff,initialPolicyId}){
 
   async function safe(n){try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}}
   async function load(){
-    const [p,t,i,pl,e]=await Promise.all(["policies","billingTransactions","billingInvoices","paymentPlans","billingEvents"].map(safe));
-    setPolicies(p);setTx(t.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setInvoices(i);setPlans(pl);setEvents(e.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
+    const [p,t,i,cr,pl,e]=await Promise.all(["policies","billingTransactions","billingInvoices","billingCredits","paymentPlans","billingEvents"].map(safe));
+    setPolicies(p);setTx(t.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setInvoices(i);setCredits(cr);setPlans(pl);setEvents(e.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
     if(selected){const fresh=p.find(x=>x.id===selected.id);if(fresh)setSelected(fresh)}
   }
   useEffect(()=>{load().catch(()=>{})},[]);
@@ -159,6 +159,62 @@ export default function Billing({staff,initialPolicyId}){
       await logEvent(selected,"payment.posted","Payment posted",{amount:value,allocationMode,allocatedInvoiceId:allocationInvoiceId||null,unappliedAmount:unapplied,allocationSummary});
     }else await logEvent(selected,"transaction.posted",type+" posted",{amount:value,note});
     setAmount("");setNote("");setAllocationMode("auto");setAllocationInvoiceId("");await load();
+  }
+
+  async function applyCreditToInvoice(inv){
+    const available=credits.filter(x=>x.customerId===inv.customerId&&x.status==="unapplied"&&Number(x.amount||0)>0).sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+    if(!available.length){alert("There is no unapplied credit available for this customer.");return}
+    let needed=Number(inv.balanceDue??inv.amount??0);
+    if(needed<=0)return;
+    for(const credit of available){
+      if(needed<=0)break;
+      const creditAmount=Number(credit.amount||0);
+      const applied=Math.min(needed,creditAmount);
+      needed-=applied;
+      const remaining=creditAmount-applied;
+      await updateDoc(doc(db,"billingCredits",credit.id),{
+        amount:remaining,
+        status:remaining<=0?"applied":"unapplied",
+        lastAppliedAt:serverTimestamp(),
+        lastAppliedBy:staff.id
+      });
+      await addDoc(collection(db,"billingCreditApplications"),{
+        customerId:inv.customerId,
+        policyId:inv.policyId,
+        policyNumber:inv.policyNumber,
+        invoiceId:inv.id,
+        invoiceNumber:inv.invoiceNumber||"",
+        creditId:credit.id,
+        amount:applied,
+        appliedBy:staff.id,
+        appliedByName:staff.displayName,
+        createdAt:serverTimestamp()
+      });
+    }
+    await updateDoc(doc(db,"billingInvoices",inv.id),{
+      balanceDue:Math.max(0,needed),
+      status:needed<=0?"paid":"partial",
+      updatedAt:serverTimestamp(),
+      creditAppliedAt:serverTimestamp()
+    });
+    const policy=policies.find(p=>p.id===inv.policyId);
+    if(policy)await logEvent(policy,"credit.applied","Unapplied credit applied to invoice",{invoiceId:inv.id,invoiceNumber:inv.invoiceNumber,balanceDue:needed});
+    await load();
+  }
+
+  async function voidInvoice(inv){
+    if(inv.status==="paid"){alert("Paid invoices cannot be voided. Reverse the payment or create an adjustment instead.");return}
+    const reason=window.prompt("Reason for voiding this invoice?");
+    if(!reason)return;
+    await updateDoc(doc(db,"billingInvoices",inv.id),{status:"void",voidReason:reason,voidedAt:serverTimestamp(),voidedBy:staff.id,updatedAt:serverTimestamp()});
+    await addDoc(collection(db,"billingTransactions"),{
+      policyId:inv.policyId,policyNumber:inv.policyNumber,customerId:inv.customerId,customerName:inv.customerName,
+      type:"credit",amount:Number(inv.balanceDue??inv.amount??0),note:"Void invoice "+(inv.invoiceNumber||inv.id)+": "+reason,status:"posted",
+      createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()
+    });
+    const policy=policies.find(p=>p.id===inv.policyId);
+    if(policy)await logEvent(policy,"invoice.voided","Invoice voided",{invoiceId:inv.id,invoiceNumber:inv.invoiceNumber,reason});
+    await load();
   }
 
   async function reverseTransaction(t){
@@ -339,7 +395,7 @@ export default function Billing({staff,initialPolicyId}){
         <div className="billing-health-strip">
           <div><span>Next due</span><strong>{nextInvoice(selectedCustomer.customerId)?money(nextInvoice(selectedCustomer.customerId).balanceDue??nextInvoice(selectedCustomer.customerId).amount):"$0.00"}</strong><small>{nextInvoice(selectedCustomer.customerId)?("Due "+nextInvoice(selectedCustomer.customerId).dueDate):"No open invoice"}</small></div>
           <div><span>Open invoices</span><strong>{customerInvoices(selectedCustomer.customerId).filter(i=>!["paid","void"].includes(i.status)).length}</strong><small>{selectedCustomer.pastDue>0?"Past due attention required":"Account current"}</small></div>
-          <div><span>Payment plans</span><strong>{plans.filter(p=>p.customerId===selectedCustomer.customerId&&["active","paused"].includes(p.status)).length}</strong><small>Active or paused</small></div>
+          <div><span>Payment plans</span><strong>{plans.filter(p=>p.customerId===selectedCustomer.customerId&&["active","paused"].includes(p.status)).length}</strong><small>Active or paused</small></div><div><span>Unapplied credit</span><strong>{money(credits.filter(x=>x.customerId===selectedCustomer.customerId&&x.status==="unapplied").reduce((s,x)=>s+Number(x.amount||0),0))}</strong><small>Available for invoices</small></div>
           <div><span>Recent payment</span><strong>{tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment").length?money(tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment")[0]?.amount):"$0.00"}</strong><small>{tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment").length?"Most recent posted payment":"No payments yet"}</small></div>
         </div>
         <div className="billing-quick-actions">
@@ -350,7 +406,7 @@ export default function Billing({staff,initialPolicyId}){
         </div>
       </div>}
 
-      {customerTab==="invoices"&&<div className="customer-invoice-layout"><div className="customer-invoice-tools"><div className="billing-list-controls"><input value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} placeholder="Search invoice #, policy, description…"/><div>{["all","open","overdue","paid"].map(x=><button type="button" key={x} className={invoiceFilter===x?"active":""} onClick={()=>setInvoiceFilter(x)}>{x}</button>)}</div></div></div>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="panel customer-invoice-form" onSubmit={createCustomerInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create invoice</h3><label>Policy<select value={customerInvoiceForm.policyId} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,policyId:e.target.value})} required><option value="">Select policy…</option>{selectedCustomer.policies.map(p=><option key={p.id} value={p.id}>{p.policyNumber} — {p.product?.toUpperCase()}</option>)}</select></label><label>Description<input value={customerInvoiceForm.description} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0.01" step="0.01" value={customerInvoiceForm.amount} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={customerInvoiceForm.dueDate} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form>}<div className="table-card customer-invoice-list"><div className="table-toolbar"><strong>All invoices</strong><span>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length}</span></div>{filteredCustomerInvoices(selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No invoices match this view.</div>:<div className="invoice-list">{filteredCustomerInvoices(selectedCustomer.customerId).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description||"Premium invoice"}</strong><span>{i.policyNumber} • Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div>}</div></div>}
+      {customerTab==="invoices"&&<div className="customer-invoice-layout"><div className="customer-invoice-tools"><div className="billing-list-controls"><input value={invoiceSearch} onChange={e=>setInvoiceSearch(e.target.value)} placeholder="Search invoice #, policy, description…"/><div>{["all","open","overdue","paid"].map(x=><button type="button" key={x} className={invoiceFilter===x?"active":""} onClick={()=>setInvoiceFilter(x)}>{x}</button>)}</div></div></div>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="panel customer-invoice-form" onSubmit={createCustomerInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create invoice</h3><label>Policy<select value={customerInvoiceForm.policyId} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,policyId:e.target.value})} required><option value="">Select policy…</option>{selectedCustomer.policies.map(p=><option key={p.id} value={p.id}>{p.policyNumber} — {p.product?.toUpperCase()}</option>)}</select></label><label>Description<input value={customerInvoiceForm.description} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0.01" step="0.01" value={customerInvoiceForm.amount} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={customerInvoiceForm.dueDate} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form>}<div className="table-card customer-invoice-list"><div className="table-toolbar"><strong>All invoices</strong><span>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length}</span></div>{filteredCustomerInvoices(selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No invoices match this view.</div>:<div className="invoice-list">{filteredCustomerInvoices(selectedCustomer.customerId).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description||"Premium invoice"}</strong><span>{i.policyNumber} • Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span>{can(staff,PERMISSIONS.BILLING_MANAGE)&&!["paid","void"].includes(i.status)&&<div className="invoice-actions"><button className="link-button" onClick={()=>applyCreditToInvoice(i)}>Apply credit</button><button className="link-button danger-link" onClick={()=>voidInvoice(i)}>Void</button></div>}</div></div>)}</div>}</div></div>}
 
       {customerTab==="payments"&&<div className="table-card billing-history-panel"><div className="table-toolbar"><strong>Payment & transaction history</strong><span>{filteredCustomerTransactions(selectedCustomer.customerId).length}</span></div><div className="billing-list-controls payment-controls"><input value={paymentSearch} onChange={e=>setPaymentSearch(e.target.value)} placeholder="Search payments, policy #, notes…"/><div>{["all","payment","charge","credit","refund","returned_payment","write_off"].map(x=><button type="button" key={x} className={paymentFilter===x?"active":""} onClick={()=>setPaymentFilter(x)}>{x.replaceAll("_"," ")}</button>)}</div></div>{filteredCustomerTransactions(selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No billing transactions match this view.</div>:<div className="customer-payment-history">{filteredCustomerTransactions(selectedCustomer.customerId).map(t=><div key={t.id}><div className="product-icon"><CreditCard size={15}/></div><div><strong>{t.type.replaceAll("_"," ")}</strong><span>{t.policyNumber} • {t.note||"No note"} • {t.createdByName||"Staff"}</span></div><div><strong>{["payment","credit","write_off"].includes(t.type)?"−":"+"}{money(t.amount)}</strong><span className={"status-pill "+(t.status||"posted")}>{t.status||"posted"}</span></div></div>)}</div>}</div>}
 
