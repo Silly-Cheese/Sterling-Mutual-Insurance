@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyCElkgTv9krB-cFleFV5ySuS_F45cVqao0",
   authDomain: "sterling-mutual-insurance.firebaseapp.com",
   projectId: "sterling-mutual-insurance",
