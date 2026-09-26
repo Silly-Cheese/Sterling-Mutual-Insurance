@@ -1107,3 +1107,24 @@ input:hover,select:hover,textarea:hover{border-color:#bdc9c3}
   .exception-list>button{grid-template-columns:1fr}
   .customer-holds-panel{grid-column:auto}
 }
+
+
+.coverage-workspace{display:grid;gap:14px}
+.coverage-finalize{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  border-color:#cfdcd5;
+  background:linear-gradient(135deg,#f7faf8,#eef5f1);
+}
+.coverage-finalize h3{font-family:"Libre Caslon Display",serif;font-size:24px;font-weight:400;margin:4px 0}
+.coverage-finalize p{margin:0;color:#687570;max-width:700px}
+.coverage-decision-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.close-checks>div{grid-template-columns:24px minmax(0,1fr) auto auto}
+@media(max-width:700px){
+  .coverage-finalize{align-items:flex-start;flex-direction:column}
+  .coverage-decision-actions{justify-content:flex-start}
+  .close-checks>div{grid-template-columns:24px 1fr}
+  .close-checks>div>strong,.close-checks>div>button{grid-column:2}
+}
