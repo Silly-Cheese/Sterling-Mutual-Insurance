@@ -277,6 +277,41 @@ service cloud.firestore {
 
 
 
+
+    match /customerHolds/{holdId} {
+      allow read: if hasPermission("customer.read");
+      allow create, update: if hasPermission("customer.hold.manage");
+      allow delete: if false;
+    }
+
+    match /documentRequests/{requestId} {
+      allow read: if hasPermission("document.read")
+                  || hasPermission("document.request.manage")
+                  || ownsCustomer(resource.data.customerId);
+      allow create: if hasPermission("document.request.manage");
+      allow update: if hasPermission("document.request.manage")
+                    || (
+                      ownsCustomer(resource.data.customerId)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        "status","submittedAt","submittedBy"
+                      ])
+                      && request.resource.data.status == "submitted"
+                    );
+      allow delete: if false;
+    }
+
+    match /billingCreditApplications/{applicationId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read");
+      allow create: if hasPermission("billing.manage");
+      allow update, delete: if false;
+    }
+
+    match /claimRecoveries/{recoveryId} {
+      allow read: if hasPermission("claim.read") || hasPermission("finance.read");
+      allow create, update: if hasPermission("claim.recovery");
+      allow delete: if false;
+    }
+
     match /customerCommunications/{communicationId} {
       allow read: if hasPermission("customer.read");
       allow create: if hasPermission("customer.communication");
