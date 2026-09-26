@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,serverTimestamp,setDoc,updateDoc} from "firebase/firestore";
 import {Activity,BarChart3,Building2,FileText,Landmark,Users} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS,ROLE_PRESETS} from "../permissions";
@@ -7,7 +7,7 @@ import {can,PERMISSIONS,ROLE_PRESETS} from "../permissions";
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 
 export default function Company({staff}){
-  const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[audit,setAudit]=useState([]),[tab,setTab]=useState("finance");
+  const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[accounts,setAccounts]=useState([]),[audit,setAudit]=useState([]),[tab,setTab]=useState("finance");
 
   async function safeDocs(name){
     try{
@@ -17,13 +17,14 @@ export default function Company({staff}){
   }
 
   async function load(){
-    const [p,c,t,s,a]=await Promise.all([
-      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("auditLogs")
+    const [p,c,t,s,ac,a]=await Promise.all([
+      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("accounts"),safeDocs("auditLogs")
     ]);
     setPolicies(p);
     setClaims(c);
     setTx(t);
     setStaffList(s);
+    setAccounts(ac);
     setAudit(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
@@ -57,7 +58,7 @@ export default function Company({staff}){
 
     {tab==="finance"&&<Finance metrics={metrics} policies={policies} claims={claims}/>}
     {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx}/>}
-    {tab==="staff"&&<Staff staffList={staffList} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
+    {tab==="staff"&&<Staff staffList={staffList} accounts={accounts} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
     {tab==="audit"&&<Audit audit={audit}/>}
     {tab==="documents"&&<Documents policies={policies}/>}
   </section>
@@ -97,7 +98,44 @@ function Analytics({policies,claims,tx}){
   </div>
 }
 
-function Staff({staffList,canManage,logAdmin,reload,currentStaff}){
+function Staff({staffList,accounts,canManage,logAdmin,reload,currentStaff}){
+  const [pendingRoles,setPendingRoles]=useState({});
+  const staffIds=new Set(staffList.map(s=>s.id));
+  const pending=accounts.filter(a=>!staffIds.has(a.id));
+
+  function nextEmployeeId(){
+    const nums=staffList.map(s=>Number(String(s.employeeId||"").replace(/\D/g,""))).filter(Number.isFinite);
+    const next=Math.max(1,...nums)+1;
+    return "SMI-"+String(next).padStart(6,"0");
+  }
+
+  async function activateAccount(account){
+    const role=pendingRoles[account.id]||"agent";
+    const preset=ROLE_PRESETS[role];
+    if(!preset||role==="founder")return;
+    await setDoc(doc(db,"staff",account.id),{
+      employeeId:nextEmployeeId(),
+      authUid:account.id,
+      displayName:account.displayName||account.email||"Staff Member",
+      email:account.email||"",
+      role,
+      title:preset.label,
+      department:preset.department,
+      permissions:preset.permissions,
+      status:"active",
+      createdAt:serverTimestamp(),
+      createdBy:currentStaff.id
+    });
+    await updateDoc(doc(db,"accounts",account.id),{
+      accessStatus:"staff",
+      assignedRole:role,
+      assignedAt:serverTimestamp(),
+      assignedBy:currentStaff.id
+    });
+    await logAdmin("Pending account activated",{accountId:account.id,role});
+    await reload();
+  }
+
   async function setRole(s,role){
     const preset=ROLE_PRESETS[role];
     if(!preset)return;
@@ -112,6 +150,7 @@ function Staff({staffList,canManage,logAdmin,reload,currentStaff}){
     await logAdmin("Staff role updated",{staffId:s.id,role});
     await reload();
   }
+
   async function setStatus(s,status){
     await updateDoc(doc(db,"staff",s.id),{
       status,
@@ -121,8 +160,23 @@ function Staff({staffList,canManage,logAdmin,reload,currentStaff}){
     await logAdmin("Staff status updated",{staffId:s.id,status});
     await reload();
   }
+
   return <div className="company-section">
-    <div className="table-card"><div className="table-toolbar"><strong>Staff directory</strong><span>{staffList.length} employees</span></div>
+    <div className="table-card">
+      <div className="table-toolbar"><strong>Pending accounts</strong><span>{pending.length} awaiting assignment</span></div>
+      {pending.length===0?<div className="empty-state"><Users size={28}/><h3>No pending accounts.</h3><p>New registrations will appear here until a staff role is assigned.</p></div>:
+      <div className="staff-list">{pending.map(a=><div className="staff-row staff-admin-row pending-account-row" key={a.id}>
+        <div className="avatar">{(a.displayName||a.email||"?").split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase()}</div>
+        <div><strong>{a.displayName||"Unnamed account"}</strong><span>{a.email} • No staff access</span></div>
+        <select value={pendingRoles[a.id]||"agent"} disabled={!canManage} onChange={e=>setPendingRoles(v=>({...v,[a.id]:e.target.value}))}>
+          {Object.entries(ROLE_PRESETS).filter(([key])=>key!=="founder").map(([key,p])=><option key={key} value={key}>{p.label}</option>)}
+        </select>
+        <button className="primary compact" disabled={!canManage} onClick={()=>activateAccount(a)}>Assign staff access</button>
+      </div>)}</div>}
+    </div>
+
+    <div className="table-card">
+      <div className="table-toolbar"><strong>Staff directory</strong><span>{staffList.length} employees</span></div>
       <div className="staff-list">{staffList.map(s=><div className="staff-row staff-admin-row" key={s.id}>
         <div className="avatar">{s.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")}</div>
         <div><strong>{s.displayName}</strong><span>{s.employeeId||"No employee ID"} • {s.title||s.role}</span></div>
@@ -134,7 +188,7 @@ function Staff({staffList,canManage,logAdmin,reload,currentStaff}){
         </select>
       </div>)}</div>
     </div>
-    <div className="notice-box">Role changes update the employee's capability list immediately. The Founder account is protected from role or status changes in this interface.</div>
+    <div className="notice-box">Creating an account does not grant access to company data. A staff role must be assigned here first. Role changes update capabilities immediately, and the Founder account remains protected.</div>
   </div>
 }
 
