@@ -1,7 +1,7 @@
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import {Bell,Building2,CalendarDays,ChevronDown,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Plus,Search,ShieldCheck,Users,WalletCards,UsersRound,X} from "lucide-react";
 import {createUserWithEmailAndPassword,deleteUser,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
-import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
+import {collection,doc,getDoc,getDocs,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
 import Bootstrap from "./pages/Bootstrap";
 import Dashboard from "./pages/Dashboard";
@@ -23,7 +23,7 @@ const navGroups=[
   ["WORK",[["Dashboard",LayoutDashboard,null],["My Work",Bell,null]]],
   ["FRONT OFFICE",[["Appointments",CalendarDays,PERMISSIONS.APPOINTMENT_READ],["Walk-ins",UsersRound,PERMISSIONS.WALKIN_READ],["Customers",Users,PERMISSIONS.CUSTOMER_READ],["Quotes & Applications",ClipboardList,PERMISSIONS.QUOTE_READ]]],
   ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
-  ["MANAGEMENT",[["Company",Building2,PERMISSIONS.ADMIN_READ]]]
+  ["MANAGEMENT",[["Company",Building2,null]]]
 ];
 
 function Login(){
@@ -86,11 +86,39 @@ function Login(){
 export default function App(){
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
-  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false);
+  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[]});
+  const searchRef=useRef(null);
   const navigate=(name,context=null)=>{setPage(name);setPageContext(context);setMobileOpen(false);setFinder("");setNewOpen(false)};
   const visibleNavGroups=navGroups.map(([group,items])=>[group,items.filter(([, ,permission])=>!permission||can(staff,permission))]).filter(([,items])=>items.length);
   const allNav=visibleNavGroups.flatMap(([,items])=>items);
-  const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,6):[];
+  const finderMatches=finder.trim()?allNav.filter(([name])=>name.toLowerCase().includes(finder.toLowerCase())).slice(0,5):[];
+  const recordMatches=finder.trim()?searchRecords.filter(r=>r.searchText.includes(finder.toLowerCase())).slice(0,7):[];
+  const notifications=[
+    ...opsData.walkIns.filter(x=>x.status==="waiting"&&can(staff,PERMISSIONS.WALKIN_READ)).map(x=>({title:x.displayName,detail:"Waiting in lobby",page:"Walk-ins"})),
+    ...opsData.quotes.filter(x=>x.status==="submitted"&&can(staff,PERMISSIONS.UNDERWRITING_REVIEW)).map(x=>({title:x.customerName,detail:"Application awaiting underwriting",page:"Quotes & Applications",context:{customerId:x.customerId}})),
+    ...opsData.claims.filter(x=>x.coverageStatus==="pending"&&can(staff,PERMISSIONS.CLAIM_READ)).map(x=>({title:x.claimNumber,detail:"Coverage decision pending",page:"Claims",context:{customerId:x.customerId}})),
+    ...opsData.policies.filter(x=>x.status==="renewal_pending"&&can(staff,PERMISSIONS.POLICY_READ)).map(x=>({title:x.policyNumber,detail:"Renewal offer pending",page:"Policies",context:{customerId:x.customerId}})),
+    ...opsData.serviceRequests.filter(x=>x.status==="submitted"&&can(staff,PERMISSIONS.SERVICE_REQUEST_READ)).map(x=>({title:x.customerName||"Customer request",detail:String(x.type||"service request").replaceAll("_"," "),page:"Customer Workspace",context:{customerId:x.customerId}})),
+    ...opsData.approvals.filter(x=>x.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_READ)).map(x=>({title:x.title||"Approval required",detail:x.summary||x.actionType,page:"Company"}))
+  ].slice(0,12);
+
+  useEffect(()=>{
+    if(!staff)return;
+    const key=e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();searchRef.current?.focus()}};
+    window.addEventListener("keydown",key);
+    (async()=>{
+      const safe=async n=>{try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
+      const [customers,policies,claims,quotes,walkIns,serviceRequests,approvals]=await Promise.all(["customers","policies","claims","quotes","walkIns","serviceRequests","approvals"].map(safe));
+      setSearchRecords([
+        ...customers.map(x=>({type:"Customer",label:x.displayName||x.email||"Customer",sub:x.email||x.phone||"",searchText:[x.displayName,x.email,x.phone].filter(Boolean).join(" ").toLowerCase(),page:"Customer Workspace",context:{customerId:x.id}})),
+        ...policies.map(x=>({type:"Policy",label:x.policyNumber,sub:x.customerName||"",searchText:[x.policyNumber,x.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Policies",context:{customerId:x.customerId}})),
+        ...claims.map(x=>({type:"Claim",label:x.claimNumber,sub:x.customerName||"",searchText:[x.claimNumber,x.customerName,x.policyNumber].filter(Boolean).join(" ").toLowerCase(),page:"Claims",context:{customerId:x.customerId}})),
+        ...quotes.map(x=>({type:"Quote",label:x.quoteNumber,sub:x.customerName||"",searchText:[x.quoteNumber,x.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Quotes & Applications",context:{customerId:x.customerId}}))
+      ]);
+      setOpsData({walkIns,quotes,claims,policies,serviceRequests,approvals});
+    })();
+    return()=>window.removeEventListener("keydown",key);
+  },[staff]);
 
   async function refreshAccess(u){
     if(!u){setStaff(null);setAccount(null);setCustomerAccount(null);setBootstrapState(null);return}
@@ -140,8 +168,12 @@ export default function App(){
         <div className="topbar-page"><span>Sterling Mutual</span><strong>{page}</strong></div>
         <div className="command-search">
           <Search size={16}/>
-          <input value={finder} onChange={e=>setFinder(e.target.value)} placeholder="Go to a workspace…"/>
-          {finderMatches.length>0&&<div className="command-results">{finderMatches.map(([name,Icon])=><button key={name} onClick={()=>navigate(name)}><Icon size={15}/><span>{name}</span></button>)}</div>}
+          <input ref={searchRef} value={finder} onChange={e=>setFinder(e.target.value)} placeholder="Search customers, policy #, claim #…  Ctrl+K"/>
+          {(finderMatches.length>0||recordMatches.length>0)&&<div className="command-results">{finderMatches.length>0&&<div className="command-result-group"><small>WORKSPACES</small>{finderMatches.map(([name,Icon])=><button key={name} onClick={()=>navigate(name)}><Icon size={15}/><span>{name}</span></button>)}</div>}{recordMatches.length>0&&<div className="command-result-group"><small>RECORDS</small>{recordMatches.map((r,i)=><button key={i} onClick={()=>navigate(r.page,r.context)}><Search size={14}/><span><strong>{r.label}</strong><small>{r.type} • {r.sub}</small></span></button>)}</div>}</div>}
+        </div>
+        <div className="notification-wrap">
+          <button className="notification-button" onClick={()=>setNotifOpen(v=>!v)}><Bell size={18}/>{notifications.length>0&&<span>{notifications.length}</span>}</button>
+          {notifOpen&&<div className="notification-menu"><div className="notification-head"><strong>Notifications</strong><span>{notifications.length}</span></div>{notifications.length===0?<div className="empty-state compact-empty">Nothing needs your attention.</div>:notifications.map((n,i)=><button key={i} onClick={()=>{navigate(n.page,n.context);setNotifOpen(false)}}><Bell size={15}/><span><strong>{n.title}</strong><small>{n.detail}</small></span></button>)}</div>}
         </div>
         <div className="new-menu-wrap">
           <button className="primary compact topbar-new" onClick={()=>setNewOpen(v=>!v)}><Plus size={16}/> New <ChevronDown size={14}/></button>
