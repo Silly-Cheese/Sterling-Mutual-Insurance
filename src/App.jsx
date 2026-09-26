@@ -123,9 +123,9 @@ export default function App(){
     </aside>
     <main className="main">
       <header className="topbar"><button className="mobile-menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><div className="search"><Search size={17}/><input placeholder="Search customers, policies, claims…"/></div><div className="environment"><span></span> LIVE OPERATIONS</div></header>
-      {page==="Dashboard"&&<Dashboard staff={staff}/>}
-      {page==="Customers"&&<Customers staff={staff}/>}
-      {page==="Quotes & Applications"&&<QuotesApplications staff={staff}/>}
+      {page==="Dashboard"&&<Dashboard staff={staff} onNavigate={navigate}/>}
+      {page==="Walk-ins"&&<WalkIns staff={staff} onNavigate={navigate}/>}\n      {page==="Customers"&&<Customers staff={staff}/>}
+      {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId}/>}
       {page==="Policies"&&<Policies staff={staff}/>}
       {page==="Claims"&&<Claims staff={staff}/>}
       {page==="SIU"&&<SIU staff={staff}/>}
