@@ -7,7 +7,7 @@ import {can,PERMISSIONS} from "../permissions";
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
 
 export default function CustomerWorkspace({staff,customerId,onNavigate}){
-  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[documents,setDocuments]=useState([]),[notes,setNotes]=useState([]),[activity,setActivity]=useState([]),[serviceRequests,setServiceRequests]=useState([]),[staffList,setStaffList]=useState([]),[tab,setTab]=useState("overview"),[note,setNote]=useState(""),[alertText,setAlertText]=useState("");
+  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[notes,setNotes]=useState([]),[activity,setActivity]=useState([]),[serviceRequests,setServiceRequests]=useState([]),[communications,setCommunications]=useState([]),[staffList,setStaffList]=useState([]),[tab,setTab]=useState("overview"),[note,setNote]=useState(""),[alertText,setAlertText]=useState(""),[comm,setComm]=useState({direction:"outbound",channel:"phone",subject:"",summary:""});
 
   async function safeQuery(name,field,value){
     try{const s=await getDocs(query(collection(db,name),where(field,"==",value)));return s.docs.map(d=>({id:d.id,...d.data()}))}catch{return []}
@@ -16,12 +16,12 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     const snap=await getDoc(doc(db,"customers",customerId));
     if(!snap.exists())return;
     const c={id:snap.id,...snap.data()};setCustomer(c);
-    const [p,q,cl,b,d,n,a,sr,staffSnap]=await Promise.all([
+    const [p,q,cl,b,inv,can,d,n,a,sr,com,staffSnap]=await Promise.all([
       safeQuery("policies","customerId",customerId),safeQuery("quotes","customerId",customerId),safeQuery("claims","customerId",customerId),
-      safeQuery("billingTransactions","customerId",customerId),safeQuery("documents","customerId",customerId),safeQuery("customerNotes","customerId",customerId),
-      safeQuery("customerActivity","customerId",customerId),safeQuery("serviceRequests","customerId",customerId),getDocs(collection(db,"staff")).catch(()=>null)
+      safeQuery("billingTransactions","customerId",customerId),safeQuery("billingInvoices","customerId",customerId),safeQuery("policyCancellations","customerId",customerId),safeQuery("documents","customerId",customerId),safeQuery("customerNotes","customerId",customerId),
+      safeQuery("customerActivity","customerId",customerId),safeQuery("serviceRequests","customerId",customerId),safeQuery("customerCommunications","customerId",customerId),getDocs(collection(db,"staff")).catch(()=>null)
     ]);
-    setPolicies(p);setQuotes(q);setClaims(cl);setBilling(b);setDocuments(d);setNotes(n.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setActivity(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setServiceRequests(sr);
+    setPolicies(p);setQuotes(q);setClaims(cl);setBilling(b);setInvoices(inv);setCancellations(can);setDocuments(d);setNotes(n.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setActivity(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setServiceRequests(sr);setCommunications(com.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
     if(staffSnap)setStaffList(staffSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.status==="active"));
     try{
       const recent=JSON.parse(localStorage.getItem("smi-recent-customers")||"[]").filter(x=>x.id!==customerId);
@@ -54,6 +54,13 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     await load();
   }
 
+  async function addCommunication(){
+    if(!comm.summary.trim())return;
+    await addDoc(collection(db,"customerCommunications"),{customerId,direction:comm.direction,channel:comm.channel,subject:comm.subject,summary:comm.summary,createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    await record("communication.logged",comm.direction+" "+comm.channel+" communication logged",{subject:comm.subject});
+    setComm({direction:"outbound",channel:"phone",subject:"",summary:""});await load();
+  }
+
   async function setAlert(){
     await updateDoc(doc(db,"customers",customerId),{pinnedAlert:alertText.trim(),updatedAt:serverTimestamp(),updatedBy:staff.id});
     await record("customer.alert.changed",alertText.trim()?"Pinned customer alert updated":"Pinned customer alert removed");
@@ -74,16 +81,22 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
   const balance=useMemo(()=>billing.reduce((sum,t)=>sum+(t.type==="charge"?Number(t.amount||0):["payment","credit","refund"].includes(t.type)?-Number(t.amount||0):0),0),[billing]);
   if(!customer)return <section className="content"><div className="empty-state"><UserRound size={30}/><h3>Customer record unavailable.</h3></div></section>;
 
-  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["requests","Requests"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
+  const tabs=[["overview","Overview"],["policies","Policies"],["quotes","Quotes"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["requests","Requests"],["communications","Communications"],["notes","Notes"],["activity","Activity"],["portal","Portal"]];
   return <section className="content customer-workspace">
     <button className="back-link workspace-back" onClick={()=>onNavigate?.("Customers")}><ArrowLeft size={15}/> Customers</button>
     {customer.pinnedAlert&&<div className="customer-alert"><AlertTriangle size={17}/><strong>{customer.pinnedAlert}</strong></div>}
+    <div className="customer-risk-strip">
+      {cancellations.some(x=>x.status==="open")&&<button onClick={()=>onNavigate?.("Cancellations")}><AlertTriangle size={14}/><span><strong>Cancellation pending</strong><small>{cancellations.filter(x=>x.status==="open").length} open case(s)</small></span></button>}
+      {invoices.some(i=>!["paid","void"].includes(i.status)&&i.dueDate<new Date().toISOString().slice(0,10))&&<button onClick={()=>onNavigate?.("Billing",{policyId:policies[0]?.id})}><CreditCard size={14}/><span><strong>Past-due billing</strong><small>{money(balance)} open balance</small></span></button>}
+      {claims.some(x=>x.siuStatus==="referred"&&!["closed","denied"].includes(x.status))&&<button onClick={()=>onNavigate?.("Claims",{customerId})}><ShieldAlert size={14}/><span><strong>SIU review</strong><small>Open claim under investigation</small></span></button>}
+      {serviceRequests.some(x=>["submitted","in_review"].includes(x.status))&&<button onClick={()=>setTab("requests")}><Bell size={14}/><span><strong>Service requested</strong><small>{serviceRequests.filter(x=>["submitted","in_review"].includes(x.status)).length} open request(s)</small></span></button>}
+    </div>
     <div className="customer-workspace-hero">
       <div className="customer-identity"><div className="avatar customer-avatar">{(customer.firstName?.[0]||"")+(customer.lastName?.[0]||"")}</div><div><div className="eyebrow">CUSTOMER ACCOUNT</div><h1>{customer.displayName}</h1><p>{customer.email||"No email"} • {customer.phone||"No phone"}</p></div></div>
       <div className="customer-hero-actions"><button className="secondary compact" onClick={toggleFavorite}><Star size={15}/> Favorite</button><button className="primary compact" onClick={()=>onNavigate?.("Quotes & Applications",{customerId})}>Start quote</button></div>
     </div>
 
-    <div className="customer-kpis"><div><span>Relationship</span><strong>{customer.status||"prospect"}</strong></div><div><span>Account owner</span><strong>{customer.ownerName||"Unassigned"}</strong></div><div><span>Active policies</span><strong>{policies.filter(p=>p.status==="active").length}</strong></div><div><span>Open claims</span><strong>{claims.filter(c=>!["closed","denied"].includes(c.status)).length}</strong></div><div><span>Billing balance</span><strong>{money(balance)}</strong></div></div>
+    <div className="customer-kpis"><div><span>Relationship</span><strong>{customer.status||"prospect"}</strong></div><div><span>Account owner</span><strong>{customer.ownerName||"Unassigned"}</strong></div><div><span>Active policies</span><strong>{policies.filter(p=>p.status==="active").length}</strong></div><div><span>Open claims</span><strong>{claims.filter(c=>!["closed","denied"].includes(c.status)).length}</strong></div><div><span>Amount due</span><strong>{money(balance)}</strong></div></div>
 
     <div className="record-tabs">{tabs.map(([key,label])=><button key={key} className={tab===key?"active":""} onClick={()=>setTab(key)}>{label}</button>)}</div>
 
@@ -100,6 +113,7 @@ export default function CustomerWorkspace({staff,customerId,onNavigate}){
     {tab==="billing"&&<div className="table-card"><div className="table-toolbar"><strong>Billing history</strong><span>{billing.length} entries</span></div><div className="portal-record-list">{billing.map(t=><div key={t.id}><CreditCard/><div><strong>{t.type}</strong><span>{t.policyNumber} • {t.note||"No note"}</span></div><div><strong>{money(t.amount)}</strong></div></div>)}</div></div>}
     {tab==="documents"&&<RecordList items={documents} empty="No customer documents." render={d=><><FileText/><div><strong>{d.title||d.type||"Document"}</strong><span>{d.policyNumber||"Customer file"}</span></div><div><span>{d.status||"available"}</span></div></>}/>}
     {tab==="requests"&&<div className="table-card"><div className="table-toolbar"><strong>Customer service requests</strong><span>{serviceRequests.length}</span></div>{serviceRequests.length===0?<div className="empty-state">No service requests from this customer.</div>:<div className="service-request-list">{serviceRequests.map(r=><div key={r.id}><div><strong>{String(r.type||"request").replaceAll("_"," ")}</strong><span>{r.details||"No details provided"}</span></div><span className={"status-pill "+r.status}>{r.status}</span>{can(staff,PERMISSIONS.SERVICE_REQUEST_MANAGE)&&<div className="service-request-actions">{r.status==="submitted"&&<button className="secondary compact" onClick={()=>patchRequest(r,"in_review")}>Start review</button>}{!["completed","denied"].includes(r.status)&&<><button className="primary compact" onClick={()=>patchRequest(r,"completed")}>Complete</button><button className="secondary compact danger-soft" onClick={()=>patchRequest(r,"denied")}>Deny</button></>}</div>}</div>)}</div>}</div>}
+    {tab==="communications"&&<div className="notes-layout"><div className="panel"><div className="eyebrow">CORRESPONDENCE</div><h2>Log communication</h2><div className="two-col"><label>Direction<select value={comm.direction} onChange={e=>setComm({...comm,direction:e.target.value})}><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label><label>Channel<select value={comm.channel} onChange={e=>setComm({...comm,channel:e.target.value})}><option value="phone">Phone</option><option value="email">Email</option><option value="letter">Letter</option><option value="in_person">In person</option><option value="portal">Portal</option></select></label></div><label>Subject<input value={comm.subject} onChange={e=>setComm({...comm,subject:e.target.value})}/></label><label>Summary<textarea rows="4" value={comm.summary} onChange={e=>setComm({...comm,summary:e.target.value})}/></label><button className="primary compact" onClick={addCommunication}>Log communication</button></div><div className="table-card"><div className="table-toolbar"><strong>Communication history</strong><span>{communications.length}</span></div><div className="communication-list">{communications.map(x=><div key={x.id}><MessageSquare size={15}/><div><strong>{x.direction} • {x.channel}{x.subject?" • "+x.subject:""}</strong><span>{x.summary}</span><small>{x.createdByName||"Staff"} • {x.createdAt?.toDate?x.createdAt.toDate().toLocaleString():"Recorded"}</small></div></div>)}</div></div></div>}
     {tab==="notes"&&<div className="notes-layout"><div className="panel">{can(staff,PERMISSIONS.CUSTOMER_NOTES)&&<><label>Internal note<textarea rows="4" value={note} onChange={e=>setNote(e.target.value)} placeholder="Visible to staff only…"/></label><button className="primary compact" onClick={addNote}>Add note</button></>}</div><div className="table-card"><div className="table-toolbar"><strong>Internal notes</strong><span>{notes.length}</span></div><div className="note-list">{notes.map(n=><div key={n.id}><strong>{n.authorName||"Staff"}</strong><p>{n.text}</p><small>{n.createdAt?.toDate?n.createdAt.toDate().toLocaleString():"Recent"}</small></div>)}</div></div></div>}
     {tab==="activity"&&<div className="table-card"><div className="table-toolbar"><strong>Customer timeline</strong><span>{activity.length} events</span></div><div className="timeline">{activity.map(a=><div key={a.id}><span className="timeline-dot"></span><div><strong>{a.summary}</strong><p>{a.type}</p><small>{a.actorName||"System"} • {a.createdAt?.toDate?a.createdAt.toDate().toLocaleString():"Recent"}</small></div></div>)}</div></div>}
     {tab==="portal"&&<div className="panel portal-account-panel"><KeyRound size={26}/><h2>{customer.authUid?"Customer portal is active":"No portal account linked"}</h2><p>{customer.authUid?("Portal email: "+(customer.portalEmail||customer.email||"Not listed")):"Open a customer portal from the customer directory to give this customer online access."}</p></div>}
