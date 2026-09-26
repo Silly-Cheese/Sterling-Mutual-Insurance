@@ -95,7 +95,7 @@ export default function Policies({staff,onNavigate,initialCustomerId}){
   async function reinstate(p){
     const latest=cancellations.filter(c=>c.policyId===p.id).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];
     if(latest&&latest.status==="open")return rescindCancellation(latest,"Policy reinstated before cancellation completed");
-    await updateDoc(doc(db,"policies",p.id),{status:"active",cancellationEffectiveDate:null,cancellationReason:null,cancellationStage:null,reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,updatedAt:serverTimestamp()});
+    const lapseStart=p.cancellationEffectiveDate||p.cancelledAt||null; const lapseEnd=new Date().toISOString().slice(0,10); await updateDoc(doc(db,"policies",p.id),{status:"active",cancellationEffectiveDate:null,cancellationReason:null,cancellationStage:null,reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,coverageLapse:lapseStart?{from:lapseStart,to:lapseEnd}:null,updatedAt:serverTimestamp()});
     await addDoc(collection(db,"policyVersions"),{policyId:p.id,policyNumber:p.policyNumber,version:Number(p.version||1)+1,reason:"Policy reinstated",snapshot:{...snapshot(p),status:"active"},createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     setSelected({...p,status:"active",cancellationStage:null});setMode("policy");await load();
   }
