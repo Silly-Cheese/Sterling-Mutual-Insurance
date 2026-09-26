@@ -1017,3 +1017,93 @@ input:hover,select:hover,textarea:hover{border-color:#bdc9c3}
 @media(prefers-reduced-motion:reduce){
   *,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
+
+
+/* Functional expansion: holds, document requests, recoveries, exceptions */
+.customer-hold-banner{
+  display:grid;
+  grid-template-columns:26px 1fr;
+  gap:9px;
+  align-items:start;
+  margin-bottom:12px;
+  padding:11px 13px;
+  border-radius:10px;
+  border:1px solid #ebd0cd;
+  background:#fff5f4;
+  color:#8a403b;
+}
+.customer-hold-banner strong,.customer-hold-banner span{display:block}
+.customer-hold-banner span{font-size:10px;color:#95635f;margin-top:2px}
+.customer-holds-panel{grid-column:1/-1}
+.hold-list{display:grid;gap:7px;margin-top:12px}
+.hold-item{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:10px 11px;
+  border-radius:9px;
+  border:1px solid #e3e8e5;
+  background:#f8faf8;
+}
+.hold-item.warning{background:#fff9ef;border-color:#eedfc7}
+.hold-item.critical{background:#fff4f3;border-color:#ebcfcc}
+.hold-item strong,.hold-item span{display:block}
+.hold-item span{font-size:9px;color:#7d8984;margin-top:3px}
+.danger-link{color:#934741!important}
+
+.invoice-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:4px;
+}
+.invoice-actions .link-button{
+  margin:0;
+  padding:0;
+  font-size:9px;
+}
+
+.recovery-list{display:grid}
+.recovery-list>div{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 150px auto;
+  gap:12px;
+  align-items:center;
+  padding:13px 15px;
+  border-top:1px solid #e7ebe8;
+}
+.recovery-list strong,.recovery-list span{display:block}
+.recovery-list span{font-size:10px;color:#7b8782;margin-top:3px}
+
+.exception-list{display:grid}
+.exception-list>button{
+  width:100%;
+  border:0;
+  border-top:1px solid #edf0ee;
+  background:#fff;
+  display:grid;
+  grid-template-columns:100px minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:13px 15px;
+  text-align:left;
+  color:inherit;
+}
+.exception-list>button:hover{background:#f8faf8}
+.exception-list>button.priority{border-left:3px solid #b66e31;background:#fffaf4}
+.exception-kind{
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#6f7b76;
+}
+.exception-list strong,.exception-list small{display:block}
+.exception-list small{font-size:10px;color:#7e8a85;margin-top:2px}
+
+@media(max-width:700px){
+  .recovery-list>div{grid-template-columns:1fr}
+  .exception-list>button{grid-template-columns:1fr}
+  .customer-holds-panel{grid-column:auto}
+}
