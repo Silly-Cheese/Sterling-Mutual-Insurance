@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {Building2,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Search,ShieldCheck,Users,WalletCards,X} from "lucide-react";
-import {onAuthStateChanged,signInWithEmailAndPassword,signOut} from "firebase/auth";
-import {doc,getDoc} from "firebase/firestore";
+import {createUserWithEmailAndPassword,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
+import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
 import Bootstrap from "./pages/Bootstrap";
 import Dashboard from "./pages/Dashboard";
@@ -16,46 +16,74 @@ import Company from "./pages/Company";
 const nav=[["Dashboard",LayoutDashboard],["Customers",Users],["Quotes & Applications",ClipboardList],["Policies",FileCheck2],["Claims",ShieldCheck],["SIU",ShieldCheck],["Billing",WalletCards],["Company",Building2]];
 
 function Login(){
-  const [email,setEmail]=useState(""); const [password,setPassword]=useState("");
+  const [mode,setMode]=useState("signin");
+  const [form,setForm]=useState({displayName:"",email:"",password:""});
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
+  const update=k=>e=>setForm(v=>({...v,[k]:e.target.value}));
+
   async function submit(e){
     e.preventDefault(); setLoading(true); setError("");
-    try{await signInWithEmailAndPassword(auth,email,password)}
-    catch{setError("We couldn't sign you in with those credentials.")}
-    finally{setLoading(false)}
+    try{
+      if(mode==="signin"){
+        await signInWithEmailAndPassword(auth,form.email,form.password);
+      }else{
+        const credential=await createUserWithEmailAndPassword(auth,form.email,form.password);
+        await updateProfile(credential.user,{displayName:form.displayName.trim()});
+        await setDoc(doc(db,"accounts",credential.user.uid),{
+          authUid:credential.user.uid,
+          displayName:form.displayName.trim(),
+          email:form.email.trim().toLowerCase(),
+          accessStatus:"pending",
+          createdAt:serverTimestamp()
+        });
+      }
+    }catch(err){
+      const code=err?.code||"";
+      if(code.includes("email-already-in-use"))setError("An account already exists with that email.");
+      else if(code.includes("weak-password"))setError("Choose a stronger password.");
+      else if(code.includes("invalid-credential"))setError("We couldn't sign you in with those credentials.");
+      else setError(mode==="signin"?"We couldn't sign you in with those credentials.":"We couldn't create your account.");
+    }finally{setLoading(false)}
   }
+
   return <div className="auth-shell">
     <div className="brand-lockup"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div></div>
     <div className="auth-card">
-      <div className="eyebrow">SECURE STAFF ACCESS</div><h1>Welcome back.</h1>
-      <p>Sign in to the Sterling Mutual operations platform.</p>
+      <div className="auth-switch"><button className={mode==="signin"?"active":""} onClick={()=>{setMode("signin");setError("")}}>Sign in</button><button className={mode==="signup"?"active":""} onClick={()=>{setMode("signup");setError("")}}>Create account</button></div>
+      <div className="eyebrow">{mode==="signin"?"SECURE STAFF ACCESS":"STERLING MUTUAL ACCOUNT"}</div>
+      <h1>{mode==="signin"?"Welcome back.":"Create your account."}</h1>
+      <p>{mode==="signin"?"Sign in to the Sterling Mutual operations platform.":"Registration does not grant staff access. An authorized administrator must assign your role or permissions before you can use company systems."}</p>
       <form onSubmit={submit} className="form-stack">
-        <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label>
-        <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>
+        {mode==="signup"&&<label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>}
+        <label>Email<input type="email" value={form.email} onChange={update("email")} required/></label>
+        <label>Password<input type="password" minLength="8" value={form.password} onChange={update("password")} required/></label>
         {error&&<div className="error-box">{error}</div>}
-        <button className="primary" disabled={loading}>{loading?"Signing in…":"Sign in"}</button>
+        <button className="primary" disabled={loading}>{loading?(mode==="signin"?"Signing in…":"Creating account…"):(mode==="signin"?"Sign in":"Create account")}</button>
       </form>
+      {mode==="signup"&&<div className="account-warning"><ShieldCheck size={17}/><span>New accounts start with <strong>no operational permissions</strong>.</span></div>}
     </div>
     <div className="auth-footer">Sterling Mutual Insurance • Internal Operations</div>
   </div>
 }
 
 export default function App(){
-  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
+  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[mobileOpen,setMobileOpen]=useState(false);
 
   async function refreshAccess(u){
-    if(!u){setStaff(null);setBootstrapState(null);return}
-    const [staffSnap,bootSnap]=await Promise.all([
+    if(!u){setStaff(null);setAccount(null);setBootstrapState(null);return}
+    const [staffSnap,accountSnap,bootSnap]=await Promise.all([
       getDoc(doc(db,"staff",u.uid)),
+      getDoc(doc(db,"accounts",u.uid)),
       getDoc(doc(db,"system","bootstrap"))
     ]);
     setStaff(staffSnap.exists()?{id:staffSnap.id,...staffSnap.data()}:null);
+    setAccount(accountSnap.exists()?{id:accountSnap.id,...accountSnap.data()}:null);
     setBootstrapState(bootSnap.exists()?bootSnap.data():null);
   }
 
   useEffect(()=>onAuthStateChanged(auth,async u=>{
-    setUser(u); setStaff(null); setBootstrapState(null);
+    setUser(u); setStaff(null); setAccount(null); setBootstrapState(null);
     if(u)await refreshAccess(u);
     setLoading(false);
   }),[]);
@@ -64,8 +92,16 @@ export default function App(){
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
   if(!user)return <Login/>;
-  if(!staff&&!bootstrapState)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
-  if(!staff&&bootstrapState)return <div className="auth-shell"><div className="auth-card"><h1>Access pending</h1><p>Sterling Mutual has already been initialized, but this authentication account does not have an active staff profile.</p><button className="primary" onClick={()=>signOut(auth)}>Sign out</button></div></div>;
+  if(!staff&&!bootstrapState&&!account)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
+  if(!staff)return <div className="auth-shell"><div className="auth-card pending-card">
+    <div className="pending-icon"><ShieldCheck size={28}/></div>
+    <div className="eyebrow">ACCOUNT CREATED</div>
+    <h1>Staff access pending.</h1>
+    <p>Your Sterling Mutual account is active, but it currently has no staff role or operational permissions.</p>
+    <div className="pending-details"><div><span>Account</span><strong>{account?.displayName||user.displayName||user.email}</strong></div><div><span>Status</span><strong>Awaiting staff assignment</strong></div></div>
+    <p className="pending-help">A Sterling Mutual administrator must assign your role before company data becomes available.</p>
+    <button className="primary" onClick={()=>signOut(auth)}>Sign out</button>
+  </div></div>;
 
   return <div className="app-shell">
     <aside className={mobileOpen?"sidebar open":"sidebar"}>
