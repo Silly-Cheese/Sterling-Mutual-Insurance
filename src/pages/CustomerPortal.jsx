@@ -1,18 +1,18 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDoc,getDocs,query,serverTimestamp,where} from "firebase/firestore";
+import {addDoc,collection,doc,getDoc,getDocs,query,serverTimestamp,updateDoc,where} from "firebase/firestore";
 import {Bell,CreditCard,FileCheck2,FileText,LogOut,Send,ShieldAlert} from "lucide-react";
 import {db} from "../firebase";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
 
 export default function CustomerPortal({user,customerAccount,onSignOut}){
-  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[requests,setRequests]=useState([]),[loading,setLoading]=useState(true),[request,setRequest]=useState({type:"proof_of_insurance",details:""}),[sending,setSending]=useState(false),[tab,setTab]=useState("overview");
+  const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[documentRequests,setDocumentRequests]=useState([]),[requests,setRequests]=useState([]),[loading,setLoading]=useState(true),[request,setRequest]=useState({type:"proof_of_insurance",details:""}),[sending,setSending]=useState(false),[tab,setTab]=useState("overview");
 
   async function load(){
     const customerId=customerAccount.customerId;
     const safe=async(name)=>{try{const s=await getDocs(query(collection(db,name),where("customerId","==",customerId)));return s.docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
-    const [cSnap,p,cl,b,i,can,d,r]=await Promise.all([getDoc(doc(db,"customers",customerId)),safe("policies"),safe("claims"),safe("billingTransactions"),safe("billingInvoices"),safe("policyCancellations"),safe("documents"),safe("serviceRequests")]);
-    if(cSnap.exists())setCustomer({id:cSnap.id,...cSnap.data()});setPolicies(p);setClaims(cl);setBilling(b);setInvoices(i);setCancellations(can);setDocuments(d);setRequests(r.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setLoading(false);
+    const [cSnap,p,cl,b,i,can,d,dr,r]=await Promise.all([getDoc(doc(db,"customers",customerId)),safe("policies"),safe("claims"),safe("billingTransactions"),safe("billingInvoices"),safe("policyCancellations"),safe("documents"),safe("documentRequests"),safe("serviceRequests")]);
+    if(cSnap.exists())setCustomer({id:cSnap.id,...cSnap.data()});setPolicies(p);setClaims(cl);setBilling(b);setInvoices(i);setCancellations(can);setDocuments(d);setDocumentRequests(dr.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setRequests(r.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setLoading(false);
   }
   useEffect(()=>{load().catch(()=>setLoading(false))},[customerAccount.customerId]);
 
@@ -20,6 +20,11 @@ export default function CustomerPortal({user,customerAccount,onSignOut}){
 
   async function acknowledgeDocument(d){
     await updateDoc(doc(db,"documents",d.id),{acknowledged:true,acknowledgedAt:serverTimestamp(),acknowledgedBy:user.uid});
+    await load();
+  }
+
+  async function markDocumentSubmitted(r){
+    await updateDoc(doc(db,"documentRequests",r.id),{status:"submitted",submittedAt:serverTimestamp(),submittedBy:user.uid});
     await load();
   }
 
@@ -37,7 +42,7 @@ export default function CustomerPortal({user,customerAccount,onSignOut}){
   }
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Opening your account…</span></div>;
-  const tabs=[["overview","Overview"],["policies","Policies"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["cancellations","Cancellations"],["requests","Requests"]];
+  const tabs=[["overview","Overview"],["policies","Policies"],["claims","Claims"],["billing","Billing"],["documents","Documents"],["document_requests","Requested Documents"],["cancellations","Cancellations"],["requests","Requests"]];
 
   return <div className="customer-portal-shell">
     <header className="customer-portal-header"><div className="brand-lockup"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Customer Account</span></div></div><button className="secondary compact" onClick={onSignOut}><LogOut size={15}/> Sign out</button></header>
@@ -51,6 +56,7 @@ export default function CustomerPortal({user,customerAccount,onSignOut}){
       {tab==="claims"&&<PortalList items={claims} empty="No claims on file." render={c=><><ShieldAlert size={18}/><div><strong>{c.claimNumber}</strong><span>{c.lossType} • {c.status}</span></div><div><strong>{money(c.claimedAmount)}</strong><span>Coverage: {c.coverageStatus}</span></div></>}/>}
       {tab==="billing"&&<div className="customer-portal-grid"><section className="table-card"><div className="table-toolbar"><strong>Open invoices</strong><span>{invoices.filter(i=>!["paid","void"].includes(i.status)).length}</span></div><div className="portal-record-list">{invoices.filter(i=>!["paid","void"].includes(i.status)).map(i=><div key={i.id}><CreditCard size={18}/><div><strong>{i.description||"Premium invoice"}</strong><span>{i.policyNumber} • due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span>{i.status}</span></div></div>)}</div></section><section className="table-card"><div className="table-toolbar"><strong>Payment history</strong><span>{billing.length}</span></div><div className="portal-record-list">{billing.map(t=><div key={t.id}><CreditCard size={18}/><div><strong>{t.type}</strong><span>{t.policyNumber} • {t.note||"No note"}</span></div><div><strong>{money(t.amount)}</strong></div></div>)}</div></section></div>}
       {tab==="documents"&&<section className="table-card"><div className="table-toolbar"><strong>Documents</strong><span>{documents.length}</span></div>{documents.length===0?<div className="empty-state compact-empty">No documents available.</div>:<div className="portal-record-list">{documents.map(d=><div key={d.id}><FileText size={18}/><div><strong>{d.title||d.type||"Document"}</strong><span>{d.policyNumber||"Customer document"} • {d.status||"available"}</span></div><div>{d.acknowledged?<span className="status-pill current">Acknowledged</span>:<button className="secondary compact" onClick={()=>acknowledgeDocument(d)}>Acknowledge</button>}</div></div>)}</div>}</section>}
+      {tab==="document_requests"&&<section className="table-card"><div className="table-toolbar"><strong>Requested documents</strong><span>{documentRequests.length}</span></div>{documentRequests.length===0?<div className="empty-state compact-empty">Sterling Mutual has not requested any documents from you.</div>:<div className="portal-record-list">{documentRequests.map(r=><div key={r.id}><FileText size={18}/><div><strong>{r.title}</strong><span>{r.description||"Requested documentation"}{r.dueDate?" • due "+r.dueDate:""}</span></div><div>{r.status==="requested"?<button className="primary compact" onClick={()=>markDocumentSubmitted(r)}>Mark submitted</button>:<span className={"status-pill "+r.status}>{r.status}</span>}</div></div>)}</div>}</section>}
       {tab==="cancellations"&&<section className="table-card"><div className="table-toolbar"><strong>Cancellation & reinstatement</strong><span>{cancellations.length}</span></div>{cancellations.length===0?<div className="empty-state compact-empty">No cancellation history.</div>:<div className="portal-cancellation-list">{cancellations.map(x=>{const due=invoices.filter(i=>i.policyId===x.policyId&&!["paid","void"].includes(i.status)).reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);return <div key={x.id}><div><strong>{x.policyNumber}</strong><span>{String(x.stage||x.status).replaceAll("_"," ")} • effective {x.effectiveDate||"—"}</span><p>{x.reason}</p></div><div><span>Amount to cure</span><strong>{money(due)}</strong>{x.status==="completed"&&!x.reinstated&&<button className="secondary compact" onClick={()=>requestReinstatement(x)}>Request reinstatement review</button>}</div></div>})}</div>}</section>}
       {tab==="requests"&&<div className="portal-request-grid"><form className="panel service-request-form" onSubmit={submitRequest}><div className="eyebrow">REQUEST SERVICE</div><h2>How can we help?</h2><label>Request type<select value={request.type} onChange={e=>setRequest({...request,type:e.target.value})}><option value="proof_of_insurance">Proof of insurance</option><option value="add_vehicle">Add vehicle</option><option value="remove_vehicle">Remove vehicle</option><option value="change_address">Change address</option><option value="policy_change">Policy change</option><option value="billing_question">Billing question</option><option value="claim_question">Claim question</option><option value="other">Other</option></select></label><label>Details<textarea rows="5" value={request.details} onChange={e=>setRequest({...request,details:e.target.value})} required/></label><button className="primary" disabled={sending}><Send size={15}/>{sending?"Sending…":"Submit request"}</button></form><div className="table-card"><div className="table-toolbar"><strong>My requests</strong><span>{requests.length}</span></div><div className="portal-record-list">{requests.map(r=><div key={r.id}><Bell size={18}/><div><strong>{String(r.type).replaceAll("_"," ")}</strong><span>{r.details}</span></div><div><span className={"status-pill "+r.status}>{r.status}</span></div></div>)}</div></div></div>}
     </main>
