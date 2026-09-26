@@ -37,7 +37,7 @@ service cloud.firestore {
 
     match /system/{docId} {
       allow read: if hasPermission("system.read")
-                  || (docId == "bootstrap" && signedIn() && !exists(bootstrapPath()));
+                  || (docId == "bootstrap" && signedIn());
       allow create: if docId == "bootstrap"
                     && signedIn()
                     && !exists(bootstrapPath())
@@ -52,7 +52,8 @@ service cloud.firestore {
     }
 
     match /staff/{uid} {
-      allow read: if isActiveStaff() && (request.auth.uid == uid || hasPermission("staff.read"));
+      allow read: if (signedIn() && request.auth.uid == uid)
+                  || (isActiveStaff() && hasPermission("staff.read"));
       allow create: if (
                       uid == request.auth.uid
                       && isBootstrapCreateForSelf()
