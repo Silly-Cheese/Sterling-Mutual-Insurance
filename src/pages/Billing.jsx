@@ -1,113 +1,145 @@
 import {useEffect,useMemo,useState} from "react";
 import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
-import {BadgeDollarSign,CreditCard,ReceiptText,TriangleAlert,X} from "lucide-react";
+import {BadgeDollarSign,CalendarClock,CheckCircle2,CreditCard,FileText,ReceiptText,RefreshCw,TriangleAlert,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
+const today=()=>new Date().toISOString().slice(0,10);
+const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
 
 export default function Billing({staff,initialPolicyId}){
-  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[selected,setSelected]=useState(null),[amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState("");
+  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[tab,setTab]=useState("overview");
+  const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState("");
+  const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"});
+  const [planForm,setPlanForm]=useState({totalAmount:"",installments:"3",firstDueDate:""});
+  const [delinq,setDelinq]=useState({stage:"current",graceEnds:"",reason:"Nonpayment of premium"});
 
+  async function safe(n){try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}}
   async function load(){
-    const [p,t]=await Promise.all([getDocs(collection(db,"policies")),getDocs(collection(db,"billingTransactions"))]);
-    setPolicies(p.docs.map(d=>({id:d.id,...d.data()})));
-    setTx(t.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
+    const [p,t,i,pl,e]=await Promise.all(["policies","billingTransactions","billingInvoices","paymentPlans","billingEvents"].map(safe));
+    setPolicies(p);setTx(t.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setInvoices(i);setPlans(pl);setEvents(e.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
+    if(selected){const fresh=p.find(x=>x.id===selected.id);if(fresh)setSelected(fresh)}
   }
   useEffect(()=>{load().catch(()=>{})},[]);
   useEffect(()=>{if(initialPolicyId&&policies.length){const p=policies.find(x=>x.id===initialPolicyId);if(p)setSelected(p)}},[initialPolicyId,policies]);
 
-  const byPolicy=useMemo(()=>{
-    const out={};
-    tx.forEach(t=>{(out[t.policyId]||(out[t.policyId]=[])).push(t)});
-    return out;
-  },[tx]);
+  const byPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,tx.filter(t=>t.policyId===p.id)])),[policies,tx]);
+  const invoiceByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,invoices.filter(i=>i.policyId===p.id).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))])),[policies,invoices]);
+  const planByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,plans.filter(x=>x.policyId===p.id)])),[policies,plans]);
 
-  function balance(policy){
-    const list=byPolicy[policy.id]||[];
-    return list.reduce((sum,t)=>sum+(t.type==="charge"?Number(t.amount||0):t.type==="payment"||t.type==="credit"||t.type==="refund"?-Number(t.amount||0):0),0);
+  function ledgerBalance(policy){
+    return (byPolicy[policy.id]||[]).reduce((sum,t)=>sum+(t.type==="charge"?Number(t.amount||0):["payment","credit"].includes(t.type)?-Number(t.amount||0):t.type==="refund"?Number(t.amount||0):0),0);
+  }
+  function invoiceBalance(policy){
+    return (invoiceByPolicy[policy.id]||[]).filter(i=>!["paid","void"].includes(i.status)).reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);
+  }
+  function overdue(policy){return (invoiceByPolicy[policy.id]||[]).filter(i=>!["paid","void"].includes(i.status)&&i.dueDate<today())}
+  async function logEvent(policy,type,summary,details={}){
+    await addDoc(collection(db,"billingEvents"),{policyId:policy.id,policyNumber:policy.policyNumber,customerId:policy.customerId,type,summary,details,actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
+  }
+
+  async function allocatePayment(policy,value){
+    let remaining=value;
+    const open=(invoiceByPolicy[policy.id]||[]).filter(i=>!["paid","void"].includes(i.status)).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
+    for(const inv of open){
+      if(remaining<=0)break;
+      const current=Number(inv.balanceDue??inv.amount??0);
+      const applied=Math.min(current,remaining);
+      remaining-=applied;
+      await updateDoc(doc(db,"billingInvoices",inv.id),{balanceDue:Math.max(0,current-applied),status:current-applied<=0?"paid":"partial",lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    }
   }
 
   async function postTransaction(e){
-    e.preventDefault();
+    e.preventDefault();if(!selected)return;
     const value=Number(amount||0);
     if(type==="refund"&&value>=5000&&!can(staff,PERMISSIONS.APPROVAL_MANAGE)){
-      await addDoc(collection(db,"approvals"),{
-        actionType:"large_refund",
-        title:"Large premium refund",
-        summary:selected.policyNumber+" • "+money(value)+" refund",
-        recordId:selected.id,
-        customerId:selected.customerId,
-        requestedAmount:value,
-        status:"pending",
-        requestedBy:staff.id,
-        requestedByName:staff.displayName,
-        createdAt:serverTimestamp()
-      });
-      setAmount("");setNote("");
-      return;
+      await addDoc(collection(db,"approvals"),{actionType:"large_refund",title:"Large premium refund",summary:selected.policyNumber+" • "+money(value)+" refund",recordId:selected.id,customerId:selected.customerId,requestedAmount:value,status:"pending",requestedBy:staff.id,requestedByName:staff.displayName,createdAt:serverTimestamp()});
+      await logEvent(selected,"refund.approval.requested","Large refund sent for approval",{amount:value});setAmount("");setNote("");return;
     }
-    await addDoc(collection(db,"billingTransactions"),{
-      policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,
-      type,amount:value,note,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()
-    });
+    await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type,amount:value,note,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     if(type==="payment"){
-      await updateDoc(doc(db,"policies",selected.id),{billingStatus:"current",lastPaymentAmount:value,lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    }
+      await allocatePayment(selected,value);
+      await updateDoc(doc(db,"policies",selected.id),{lastPaymentAmount:value,lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      await logEvent(selected,"payment.posted","Payment posted",{amount:value});
+    }else await logEvent(selected,"transaction.posted",type+" posted",{amount:value,note});
     setAmount("");setNote("");await load();
   }
 
-  async function setBillingStatus(status){
-    await updateDoc(doc(db,"policies",selected.id),{billingStatus:status,updatedAt:serverTimestamp(),billingUpdatedBy:staff.id});
-    setSelected({...selected,billingStatus:status});await load();
+  async function createInvoice(e){
+    e.preventDefault();if(!selected)return;
+    const value=Number(invoiceForm.amount||0);
+    await addDoc(collection(db,"billingInvoices"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,description:invoiceForm.description,amount:value,balanceDue:value,dueDate:invoiceForm.dueDate,status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type:"charge",amount:value,note:invoiceForm.description,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    await logEvent(selected,"invoice.created","Invoice created",{amount:value,dueDate:invoiceForm.dueDate});
+    setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
+  }
+
+  async function createPaymentPlan(e){
+    e.preventDefault();if(!selected)return;
+    const total=Number(planForm.totalAmount||0),count=Math.max(2,Number(planForm.installments||2)),per=total/count;
+    const schedule=Array.from({length:count},(_,i)=>({number:i+1,amount:Number(per.toFixed(2)),dueDate:addDays(planForm.firstDueDate,i*30),status:"scheduled"}));
+    await addDoc(collection(db,"paymentPlans"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,totalAmount:total,installmentCount:count,installmentAmount:Number(per.toFixed(2)),firstDueDate:planForm.firstDueDate,status:"active",schedule,createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    await updateDoc(doc(db,"policies",selected.id),{billingStatus:"payment_plan",updatedAt:serverTimestamp(),billingUpdatedBy:staff.id});
+    await logEvent(selected,"payment_plan.created","Payment plan created",{total,installments:count});
+    setPlanForm({totalAmount:"",installments:"3",firstDueDate:""});await load();
+  }
+
+  async function advanceDelinquency(){
+    if(!selected)return;
+    const stage=delinq.stage;
+    const patch={billingStatus:stage,billingUpdatedBy:staff.id,updatedAt:serverTimestamp()};
+    if(stage==="late")Object.assign(patch,{delinquentSince:today()});
+    if(stage==="grace_period")Object.assign(patch,{gracePeriodEnds:delinq.graceEnds||addDays(today(),10)});
+    if(stage==="cancellation_pending"){
+      const effective=delinq.graceEnds||addDays(today(),10);
+      Object.assign(patch,{gracePeriodEnds:effective});
+      await addDoc(collection(db,"policyCancellations"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,source:"billing",reasonCategory:"nonpayment",reason:delinq.reason,stage:"notice_pending",noticeDate:today(),effectiveDate:effective,balanceSnapshot:invoiceBalance(selected),status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+      await addDoc(collection(db,"documents"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,type:"cancellation_notice",title:"Notice of Pending Cancellation",status:"available",effectiveDate:effective,createdAt:serverTimestamp(),createdBy:staff.id});
+    }
+    await updateDoc(doc(db,"policies",selected.id),patch);
+    await logEvent(selected,"delinquency."+stage,"Billing status changed to "+stage.replaceAll("_"," "),{graceEnds:patch.gracePeriodEnds||null});
+    setSelected({...selected,...patch});await load();
+  }
+
+  async function cureAccount(){
+    if(!selected)return;
+    await updateDoc(doc(db,"policies",selected.id),{billingStatus:"current",delinquentSince:null,gracePeriodEnds:null,updatedAt:serverTimestamp(),billingUpdatedBy:staff.id});
+    const cases=(await safe("policyCancellations")).filter(c=>c.policyId===selected.id&&c.status==="open"&&c.source==="billing");
+    for(const c of cases)await updateDoc(doc(db,"policyCancellations",c.id),{status:"rescinded",stage:"rescinded",rescindedAt:serverTimestamp(),rescindedBy:staff.id,rescindReason:"Billing account cured"});
+    await logEvent(selected,"delinquency.cured","Billing account returned to current");
+    setSelected({...selected,billingStatus:"current"});await load();
   }
 
   const collected=tx.filter(t=>t.type==="payment").reduce((s,t)=>s+Number(t.amount||0),0);
   const refunds=tx.filter(t=>t.type==="refund").reduce((s,t)=>s+Number(t.amount||0),0);
   const delinquent=policies.filter(p=>["late","grace_period","cancellation_pending"].includes(p.billingStatus)).length;
+  const pastDueTotal=policies.reduce((s,p)=>s+overdue(p).reduce((x,i)=>x+Number(i.balanceDue??i.amount??0),0),0);
 
   return <section className="content">
-    <div className="workflow-ribbon service-ribbon"><span>Customer</span><span>Quote</span><span>Policy</span><strong>Billing</strong><span>Delinquency</span><span>Resolution</span></div>
-    <div className="page-heading"><div><div className="eyebrow">PREMIUM OPERATIONS</div><h1>Billing</h1><p>Post premium activity, track account status, and manage delinquency workflows.</p></div></div>
+    <div className="workflow-ribbon service-ribbon"><span>Policy</span><strong>Billing</strong><span>Invoice</span><span>Past Due</span><span>Grace</span><span>Cancellation</span><span>Recovery</span></div>
+    <div className="page-heading"><div><div className="eyebrow">PREMIUM OPERATIONS</div><h1>Billing</h1><p>Invoices, payments, balances, payment plans, delinquency, and cancellation prevention in one account view.</p></div></div>
 
-    <div className="metric-grid">
-      <article className="metric-card"><div className="metric-icon"><BadgeDollarSign size={19}/></div><div className="metric-value">{money(collected)}</div><div className="metric-label">Premium collected</div><div className="metric-sub">Posted payments</div></article>
-      <article className="metric-card"><div className="metric-icon"><ReceiptText size={19}/></div><div className="metric-value">{money(refunds)}</div><div className="metric-label">Refunds</div><div className="metric-sub">Returned premium</div></article>
-      <article className="metric-card"><div className="metric-icon"><TriangleAlert size={19}/></div><div className="metric-value">{delinquent}</div><div className="metric-label">Delinquent accounts</div><div className="metric-sub">Late / grace / cancellation pending</div></article>
-      <article className="metric-card"><div className="metric-icon"><CreditCard size={19}/></div><div className="metric-value">{policies.length}</div><div className="metric-label">Policy accounts</div><div className="metric-sub">Billing-enabled policies</div></article>
-    </div>
+    <div className="metric-grid"><article className="metric-card"><div className="metric-icon"><BadgeDollarSign size={19}/></div><div className="metric-value">{money(collected)}</div><div className="metric-label">Premium collected</div></article><article className="metric-card"><div className="metric-icon"><TriangleAlert size={19}/></div><div className="metric-value">{money(pastDueTotal)}</div><div className="metric-label">Past due balance</div></article><article className="metric-card"><div className="metric-icon"><CalendarClock size={19}/></div><div className="metric-value">{delinquent}</div><div className="metric-label">Delinquent accounts</div></article><article className="metric-card"><div className="metric-icon"><ReceiptText size={19}/></div><div className="metric-value">{money(refunds)}</div><div className="metric-label">Refunds</div></article></div>
 
-    <div className="table-card workflow-table">
-      <div className="table-toolbar"><strong>Policy billing accounts</strong><span>{policies.length} accounts</span></div>
-      <div className="quote-list">{policies.map(p=><button className="policy-row billing-row" key={p.id} onClick={()=>setSelected(p)}>
-        <div className="product-icon"><CreditCard size={18}/></div>
-        <div className="quote-main"><strong>{p.customerName}</strong><span>{p.policyNumber} • {p.product?.toUpperCase()}</span></div>
-        <div className="quote-money"><strong>{money(balance(p))}</strong><span>Current ledger balance</span></div>
-        <span className={"status-pill "+(p.billingStatus||"current")}>{(p.billingStatus||"current").replaceAll("_"," ")}</span>
-      </button>)}</div>
-    </div>
+    <div className="table-card workflow-table"><div className="table-toolbar"><strong>Policy billing accounts</strong><span>{policies.length} accounts</span></div><div className="quote-list">{policies.map(p=>{const past=overdue(p);return <button className={"policy-row billing-row "+(past.length?"billing-past-due":"")} key={p.id} onClick={()=>{setSelected(p);setTab("overview");setDelinq({stage:p.billingStatus||"current",graceEnds:p.gracePeriodEnds||"",reason:"Nonpayment of premium"})}}><div className="product-icon"><CreditCard size={18}/></div><div className="quote-main"><strong>{p.customerName}</strong><span>{p.policyNumber} • {past.length?past.length+" overdue invoice(s)":"No overdue invoices"}</span></div><div className="quote-money"><strong>{money(invoiceBalance(p))}</strong><span>Open invoice balance</span></div><span className={"status-pill "+(p.billingStatus||"current")}>{(p.billingStatus||"current").replaceAll("_"," ")}</span></button>})}</div></div>
 
-    {selected&&<div className="modal-backdrop"><div className="modal wide">
-      <div className="modal-head"><div><div className="eyebrow">BILLING ACCOUNT</div><h2>{selected.policyNumber}</h2></div><button onClick={()=>setSelected(null)}><X/></button></div>
-      <div className="policy-hero"><div><span>Customer</span><strong>{selected.customerName}</strong></div><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Billing status</span><strong>{(selected.billingStatus||"current").toUpperCase()}</strong></div></div>
+    {selected&&<div className="modal-backdrop"><div className="modal claim-detail"><div className="modal-head"><div><div className="eyebrow">BILLING ACCOUNT</div><h2>{selected.policyNumber}</h2><p>{selected.customerName}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
+      <div className="billing-account-hero"><div><span>Open balance</span><strong>{money(invoiceBalance(selected))}</strong></div><div><span>Ledger balance</span><strong>{money(ledgerBalance(selected))}</strong></div><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Status</span><strong>{(selected.billingStatus||"current").replaceAll("_"," ")}</strong></div></div>
+      <div className="record-tabs">{[["overview","Overview"],["invoices","Invoices"],["ledger","Ledger"],["plan","Payment plan"],["delinquency","Delinquency"],["history","History"]].map(([k,l])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k)}>{l}</button>)}</div>
 
-      {can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="billing-form" onSubmit={postTransaction}>
-        <div className="three-col"><label>Transaction type<select value={type} onChange={e=>setType(e.target.value)}><option value="payment">Payment</option><option value="charge">Charge</option><option value="credit">Credit</option><option value="refund">Refund</option></select></label><label>Amount<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></label><label>Note<input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional transaction note"/></label></div>
-        <button className="primary compact">Post transaction</button>
-      </form>}
+      {tab==="overview"&&<div className="billing-overview-grid"><article className="panel"><div className="eyebrow">ACCOUNT HEALTH</div><h3>{overdue(selected).length?"Past due":"Account current"}</h3><p>{overdue(selected).length?overdue(selected).length+" invoice(s) are beyond their due date.":"No overdue invoices detected."}</p>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="billing-form" onSubmit={postTransaction}><div className="three-col"><label>Transaction<select value={type} onChange={e=>setType(e.target.value)}><option value="payment">Payment</option><option value="charge">Charge</option><option value="credit">Credit</option><option value="refund">Refund</option></select></label><label>Amount<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></label><label>Note<input value={note} onChange={e=>setNote(e.target.value)}/></label></div><button className="primary compact">Post transaction</button></form>}</article><article className="panel"><div className="eyebrow">ACTIVE PLAN</div>{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").length?<div className="payment-plan-preview">{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").map(p=><div key={p.id}><strong>{money(p.totalAmount)}</strong><span>{p.installmentCount} installments • {money(p.installmentAmount)} each</span></div>)}</div>:<div className="queue-empty"><RefreshCw size={26}/><h3>No payment plan.</h3></div>}</article></div>}
 
-      <div className="billing-status-actions">
-        {can(staff,PERMISSIONS.BILLING_MANAGE)&&<>
-          <button className="secondary compact" onClick={()=>setBillingStatus("current")}>Current</button>
-          <button className="secondary compact" onClick={()=>setBillingStatus("late")}>Mark late</button>
-          <button className="secondary compact" onClick={()=>setBillingStatus("grace_period")}>Grace period</button>
-          <button className="secondary compact danger-soft" onClick={()=>setBillingStatus("cancellation_pending")}>Cancellation pending</button>
-        </>}
-      </div>
+      {tab==="invoices"&&<div className="billing-tab-grid"><form className="panel invoice-form" onSubmit={createInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create premium invoice</h3><label>Description<input value={invoiceForm.description} onChange={e=>setInvoiceForm({...invoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0" step="0.01" value={invoiceForm.amount} onChange={e=>setInvoiceForm({...invoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm({...invoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form><div className="table-card"><div className="table-toolbar"><strong>Invoices</strong><span>{(invoiceByPolicy[selected.id]||[]).length}</span></div><div className="invoice-list">{(invoiceByPolicy[selected.id]||[]).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.description}</strong><span>Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div></div></div>}
 
-      <div className="ledger"><div className="table-toolbar"><strong>Ledger</strong><span>{(byPolicy[selected.id]||[]).length} entries</span></div>
-        {(byPolicy[selected.id]||[]).length===0?<div className="empty-state compact-empty">No transactions yet.</div>:(byPolicy[selected.id]||[]).map(t=><div className="ledger-row" key={t.id}><div><strong>{t.type.replaceAll("_"," ")}</strong><span>{t.note||"No note"} • {t.createdByName||"Staff"}</span></div><strong className={t.type==="payment"||t.type==="credit"?"credit-amount":""}>{t.type==="payment"||t.type==="credit"?"−":"+"}{money(t.amount)}</strong></div>)}
-      </div>
+      {tab==="ledger"&&<div className="ledger"><div className="table-toolbar"><strong>Account ledger</strong><span>{(byPolicy[selected.id]||[]).length} entries</span></div>{(byPolicy[selected.id]||[]).length===0?<div className="empty-state compact-empty">No transactions yet.</div>:(byPolicy[selected.id]||[]).map(t=><div className="ledger-row" key={t.id}><div><strong>{t.type.replaceAll("_"," ")}</strong><span>{t.note||"No note"} • {t.createdByName||"Staff"}</span></div><strong className={["payment","credit"].includes(t.type)?"credit-amount":""}>{["payment","credit"].includes(t.type)?"−":"+"}{money(t.amount)}</strong></div>)}</div>}
+
+      {tab==="plan"&&<div className="billing-tab-grid"><form className="panel" onSubmit={createPaymentPlan}><div className="eyebrow">PAYMENT ARRANGEMENT</div><h3>Create payment plan</h3><label>Total amount<input type="number" min="0" value={planForm.totalAmount} onChange={e=>setPlanForm({...planForm,totalAmount:e.target.value})} required/></label><div className="two-col"><label>Installments<select value={planForm.installments} onChange={e=>setPlanForm({...planForm,installments:e.target.value})}><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option></select></label><label>First due date<input type="date" value={planForm.firstDueDate} onChange={e=>setPlanForm({...planForm,firstDueDate:e.target.value})} required/></label></div><button className="primary">Create plan</button></form><div className="table-card"><div className="table-toolbar"><strong>Payment plans</strong></div><div className="plan-list">{(planByPolicy[selected.id]||[]).map(p=><div key={p.id}><CheckCircle2 size={17}/><div><strong>{money(p.totalAmount)} • {p.installmentCount} installments</strong><span>{p.status} • first due {p.firstDueDate}</span></div></div>)}</div></div></div>}
+
+      {tab==="delinquency"&&<div className="delinquency-workflow"><div className="delinquency-steps">{["current","late","grace_period","cancellation_pending"].map((s,i)=><div className={(selected.billingStatus||"current")===s?"active":""} key={s}><span>{i+1}</span><strong>{s.replaceAll("_"," ")}</strong></div>)}</div>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<div className="panel"><div className="eyebrow">DELINQUENCY ACTION</div><h3>Advance or cure account</h3><label>Stage<select value={delinq.stage} onChange={e=>setDelinq({...delinq,stage:e.target.value})}><option value="current">Current</option><option value="late">Late</option><option value="grace_period">Grace period</option><option value="cancellation_pending">Cancellation pending</option></select></label>{["grace_period","cancellation_pending"].includes(delinq.stage)&&<label>Grace / cancellation effective date<input type="date" value={delinq.graceEnds} onChange={e=>setDelinq({...delinq,graceEnds:e.target.value})}/></label>}{delinq.stage==="cancellation_pending"&&<label>Reason<textarea rows="3" value={delinq.reason} onChange={e=>setDelinq({...delinq,reason:e.target.value})}/></label>}<div className="action-stack"><button className="primary" onClick={advanceDelinquency}>Apply stage</button><button className="secondary" onClick={cureAccount}>Cure account / rescind billing cancellation</button></div></div>}</div>}
+
+      {tab==="history"&&<div className="timeline">{events.filter(e=>e.policyId===selected.id).map(e=><div key={e.id}><span className="timeline-dot"></span><div><strong>{e.summary}</strong><p>{e.type}</p><small>{e.actorName||"System"} • {e.createdAt?.toDate?e.createdAt.toDate().toLocaleString():"Recorded"}</small></div></div>)}</div>}
     </div></div>}
   </section>
 }
