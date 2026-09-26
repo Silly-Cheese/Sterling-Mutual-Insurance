@@ -26,11 +26,15 @@ export default function Policies({staff,onNavigate,initialCustomerId}){
   async function issue(q){
     setIssuing(q.id);
     try{
-      const batch=writeBatch(db);const policyRef=doc(collection(db,"policies"));const assetRef=doc(collection(db,"insuredAssets"));const versionRef=doc(collection(db,"policyVersions"));const today=new Date().toISOString().slice(0,10);const number=policyNo();
+      const batch=writeBatch(db);const policyRef=doc(collection(db,"policies"));const assetRef=doc(collection(db,"insuredAssets"));const versionRef=doc(collection(db,"policyVersions"));const declarationRef=doc(collection(db,"documents"));const cardRef=doc(collection(db,"documents"));const today=new Date().toISOString().slice(0,10);const number=policyNo();
       const policy={policyNumber:number,customerId:q.customerId,customerName:q.customerName,quoteId:q.id,product:q.product,status:"active",version:1,monthlyPremium:Number(q.monthlyPremium||0),termPremium:Number(q.sixMonthPremium||0),deductible:Number(q.deductible||0),liabilityLimit:Number(q.liabilityLimit||0),propertyDamageLimit:Number(q.propertyDamageLimit||0),effectiveDate:today,expirationDate:addMonths(today,6),issuedBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
       batch.set(policyRef,policy);batch.set(assetRef,{policyId:policyRef.id,customerId:q.customerId,type:q.assetType||"vehicle",description:q.assetDescription,status:"insured",createdAt:serverTimestamp()});
       batch.set(versionRef,{policyId:policyRef.id,policyNumber:number,version:1,reason:"Policy issued",snapshot:snapshot(policy),createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
-      batch.update(doc(db,"quotes",q.id),{status:"issued",policyId:policyRef.id,issuedAt:serverTimestamp(),updatedAt:serverTimestamp()});await batch.commit();await load();
+      batch.set(declarationRef,{customerId:q.customerId,policyId:policyRef.id,policyNumber:number,type:"policy_declaration",title:"Policy Declaration",status:"available",createdAt:serverTimestamp(),createdBy:staff.id});
+      batch.set(cardRef,{customerId:q.customerId,policyId:policyRef.id,policyNumber:number,type:"proof_of_insurance",title:"Proof of Insurance",status:"available",createdAt:serverTimestamp(),createdBy:staff.id});
+      batch.update(doc(db,"quotes",q.id),{status:"issued",policyId:policyRef.id,issuedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      batch.update(doc(db,"customers",q.customerId),{status:"active_customer",updatedAt:serverTimestamp(),updatedBy:staff.id});
+      await batch.commit();await load();
     }finally{setIssuing(null)}
   }
 
