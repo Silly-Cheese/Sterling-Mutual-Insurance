@@ -9,13 +9,13 @@ const ageDays=ts=>ts?.toDate?Math.max(0,Math.floor((Date.now()-ts.toDate().getTi
 const daysFrom=date=>date?Math.ceil((new Date(date+"T23:59:59")-new Date())/86400000):null;
 
 export default function MyWork({staff,onNavigate}){
-  const [data,setData]=useState({walkIns:[],appointments:[],quotes:[],policies:[],claims:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[],contacts:[]});
+  const [data,setData]=useState({walkIns:[],appointments:[],quotes:[],policies:[],claims:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[],contacts:[],siuCases:[]});
   const [filter,setFilter]=useState("all");
 
   useEffect(()=>{(async()=>{
     const safe=async n=>{try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
-    const [walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts]=await Promise.all(["walkIns","appointments","quotes","policies","claims","serviceRequests","approvals","billingInvoices","policyCancellations","claimContacts"].map(safe));
-    setData({walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts});
+    const [walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases]=await Promise.all(["walkIns","appointments","quotes","policies","claims","serviceRequests","approvals","billingInvoices","policyCancellations","claimContacts","siuCases"].map(safe));
+    setData({walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases});
   })()},[]);
 
   const items=useMemo(()=>{
@@ -31,12 +31,13 @@ export default function MyWork({staff,onNavigate}){
     });
     if(can(staff,PERMISSIONS.BILLING_READ))data.invoices.filter(i=>!["paid","void"].includes(i.status)&&i.dueDate<today()).forEach(i=>{const days=Math.abs(daysFrom(i.dueDate)||0);out.push({priority:days>=10?1:2,type:"Billing Risk",title:i.customerName||i.policyNumber,detail:i.policyNumber+" • past-due invoice",aging:days+" days past due",page:"Billing",context:{policyId:i.policyId},Icon:CreditCard})});
     if(can(staff,PERMISSIONS.POLICY_READ))data.cancellations.filter(c=>c.status==="open").forEach(c=>{const days=daysFrom(c.effectiveDate);out.push({priority:days!==null&&days<=5?1:2,type:"Cancellation",title:c.customerName,detail:c.policyNumber+" • "+String(c.stage).replaceAll("_"," "),aging:days===null?"No effective date":days<0?Math.abs(days)+" days overdue":days+" days to effective",page:"Cancellations",Icon:AlertTriangle})});
+    if(can(staff,PERMISSIONS.SIU_READ))data.siuCases.filter(x=>x.status==="open"&&(x.assignedTo===staff.id||!x.assignedTo||x.stage==="supervisor_review")).forEach(x=>out.push({priority:x.stage==="supervisor_review"||x.priority==="critical"||ageDays(x.createdAt)>=7?1:2,type:"SIU",title:x.claimNumber,detail:x.stage==="supervisor_review"?"Supervisor review required":x.assignedTo===staff.id?"Assigned SIU investigation":"Unassigned SIU referral",aging:ageDays(x.createdAt)+" days open",page:"SIU",Icon:ShieldAlert}));
     if(can(staff,PERMISSIONS.SERVICE_REQUEST_READ))data.serviceRequests.filter(x=>["submitted","in_review"].includes(x.status)).forEach(x=>out.push({priority:ageDays(x.createdAt)>=3?1:2,type:"Service",title:x.customerName||x.type,detail:(x.type||"request").replaceAll("_"," "),aging:ageDays(x.createdAt)+" days open",page:"Customer Workspace",context:{customerId:x.customerId},Icon:Bell}));
     if(can(staff,PERMISSIONS.APPROVAL_READ))data.approvals.filter(x=>x.status==="pending").forEach(x=>out.push({priority:1,type:"Approvals",title:x.title||x.actionType,detail:x.summary||"Approval required",aging:ageDays(x.createdAt)+" days waiting",page:"Company",Icon:AlertTriangle}));
     return out.sort((a,b)=>a.priority-b.priority||String(b.aging).localeCompare(String(a.aging)));
   },[data,staff]);
 
-  const filters=["all","priority","Claims","Billing Risk","Cancellation","Underwriting","Renewal","Service","Approvals","Front Office"];
+  const filters=["all","priority","Claims","SIU","Billing Risk","Cancellation","Underwriting","Renewal","Service","Approvals","Front Office"];
   const shown=items.filter(i=>filter==="all"||filter==="priority"&&i.priority===1||i.type===filter);
   const counts={urgent:items.filter(x=>x.priority===1).length,total:items.length,claims:items.filter(x=>x.type==="Claims").length,approvals:items.filter(x=>x.type==="Approvals").length};
 
