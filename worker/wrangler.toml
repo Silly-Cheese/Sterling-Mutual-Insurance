@@ -1,7 +1,0 @@
-name = "sterling-mutual-bootstrap"
-main = "src/index.js"
-compatibility_date = "2026-09-01"
-
-[vars]
-FIREBASE_PROJECT_ID = "sterling-mutual-insurance"
-FIREBASE_API_KEY = "AIzaSyCElkgTv9krB-cFleFV5ySuS_F45cVqao0"
