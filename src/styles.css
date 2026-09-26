@@ -23,3 +23,22 @@ select,textarea{font:inherit;border:1px solid #ccd3cf;border-radius:10px;padding
 @media(max-width:900px){.staff-admin-row{grid-template-columns:40px 1fr}.staff-admin-row select{grid-column:2;width:100%}}
 
 .dashboard-queue{display:grid;margin-top:12px}.dashboard-queue>div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #e5e9e6}.dashboard-queue strong,.dashboard-queue small{display:block}.dashboard-queue small{color:#83908c;margin-top:3px}.queue-type{font-size:9px;font-weight:800;letter-spacing:.08em;background:#e7eeea;color:#315f53;border-radius:6px;padding:5px 7px}
+
+
+/* Account registration + pending access */
+.auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#edf1ee;border-radius:10px;padding:4px;margin-bottom:22px}
+.auth-switch button{border:0;background:transparent;color:#74807c;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:700}
+.auth-switch button.active{background:#fff;color:var(--green);box-shadow:0 2px 8px #10251f14}
+.account-warning{margin-top:16px;padding:12px 13px;border:1px solid #dce5df;background:#f2f7f4;border-radius:10px;display:flex;gap:9px;align-items:flex-start;color:#51615d;font-size:12px;line-height:1.45}
+.account-warning svg{color:#2e6a58;flex:0 0 auto}
+.pending-card{max-width:470px}
+.pending-icon{width:54px;height:54px;border-radius:15px;background:#e6efe9;color:#265d4e;display:grid;place-items:center;margin-bottom:18px}
+.pending-details{display:grid;gap:10px;margin:20px 0;padding:14px;background:#f1f4f1;border-radius:11px}
+.pending-details>div{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px}
+.pending-details span{color:#7b8683}
+.pending-details strong{text-align:right;color:#273431}
+.pending-help{font-size:12px!important}
+.company-section{display:grid;gap:14px}
+.pending-account-row{background:#fbfcfa}
+.pending-account-row>button{white-space:nowrap}
+@media(max-width:900px){.pending-account-row>button{grid-column:2;width:100%}}
