@@ -360,3 +360,28 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
   .portal-cancellation-list>div{grid-template-columns:1fr}.portal-cancellation-list>div>div:last-child{text-align:left}
 }
 @media(max-width:520px){.cancellation-case-kpis{grid-template-columns:1fr}.reopen-box{flex-direction:column;align-items:stretch}}
+
+
+/* SIU investigation system */
+.siu-case-list{display:grid}
+.siu-case-list>button{display:grid;grid-template-columns:42px minmax(0,1fr) 90px auto;gap:12px;align-items:center;border:0;border-top:1px solid #e7ebe8;background:#fff;padding:14px 16px;text-align:left;color:inherit;width:100%}
+.siu-case-list>button:hover{background:#f7f9f7}
+.siu-case-list>button.aging{border-left:3px solid #b86f31;background:#fffaf4}
+.siu-case-list strong,.siu-case-list span,.siu-case-list small{display:block}
+.siu-case-list span{font-size:11px;color:#6f7b77;margin-top:2px}
+.siu-case-list small{font-size:9px;color:#9b7957;margin-top:4px}
+.siu-detail{width:min(1120px,100%)}
+.siu-command-header{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;background:#14352d;color:#fff;border-radius:12px;padding:13px;margin-bottom:12px}
+.siu-command-header span,.siu-command-header strong{display:block}
+.siu-command-header span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#b6c7c1}
+.siu-command-header strong{margin-top:4px;font-size:12px}
+.siu-overview-grid,.siu-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.siu-item-list>div,.siu-finding-list>div{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:13px 15px;border-top:1px solid #e7ebe8}
+.siu-item-list strong,.siu-item-list span,.siu-item-list small,.siu-finding-list strong,.siu-finding-list span,.siu-finding-list small{display:block}
+.siu-item-list span,.siu-finding-list span{font-size:11px;color:#64716d;margin-top:3px}
+.siu-item-list small,.siu-finding-list small{font-size:9px;color:#89938f;margin-top:4px}
+.siu-item-list>div>div:last-child{display:flex;gap:6px;flex-wrap:wrap}
+.siu-disposition{grid-column:1/-1}
+.siu-disposition h3{font-family:"Libre Caslon Display",serif;font-size:25px;font-weight:400;margin:4px 0}
+@media(max-width:900px){.siu-command-header{grid-template-columns:repeat(3,1fr)}.siu-overview-grid,.siu-two-col{grid-template-columns:1fr}}
+@media(max-width:560px){.siu-case-list>button{grid-template-columns:42px 1fr}.siu-case-list>button>div:nth-child(3),.siu-case-list>button>.status-pill{grid-column:2}.siu-command-header{grid-template-columns:1fr 1fr}}
