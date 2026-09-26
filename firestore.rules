@@ -68,6 +68,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /accounts/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid)
+                  || hasPermission("staff.read")
+                  || hasPermission("staff.manage");
+      allow create: if signedIn()
+                    && request.auth.uid == uid
+                    && exists(bootstrapPath())
+                    && get(bootstrapPath()).data.initialized == true
+                    && request.resource.data.authUid == request.auth.uid
+                    && request.resource.data.accessStatus == "pending";
+      allow update: if hasPermission("staff.manage");
+      allow delete: if false;
+    }
+
     match /customers/{customerId} {
       allow read: if hasPermission("customer.read") || ownsCustomer(customerId);
       allow create: if hasPermission("customer.create");
