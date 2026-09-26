@@ -31,6 +31,22 @@ export default function Billing({staff,initialPolicyId}){
   async function postTransaction(e){
     e.preventDefault();
     const value=Number(amount||0);
+    if(type==="refund"&&value>=5000&&!can(staff,PERMISSIONS.APPROVAL_MANAGE)){
+      await addDoc(collection(db,"approvals"),{
+        actionType:"large_refund",
+        title:"Large premium refund",
+        summary:selected.policyNumber+" • "+money(value)+" refund",
+        recordId:selected.id,
+        customerId:selected.customerId,
+        requestedAmount:value,
+        status:"pending",
+        requestedBy:staff.id,
+        requestedByName:staff.displayName,
+        createdAt:serverTimestamp()
+      });
+      setAmount("");setNote("");
+      return;
+    }
     await addDoc(collection(db,"billingTransactions"),{
       policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,
       type,amount:value,note,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()
