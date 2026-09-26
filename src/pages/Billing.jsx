@@ -6,7 +6,7 @@ import {can,PERMISSIONS} from "../permissions";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
 
-export default function Billing({staff}){
+export default function Billing({staff,initialPolicyId}){
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[selected,setSelected]=useState(null),[amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState("");
 
   async function load(){
@@ -15,6 +15,7 @@ export default function Billing({staff}){
     setTx(t.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{if(initialPolicyId&&policies.length){const p=policies.find(x=>x.id===initialPolicyId);if(p)setSelected(p)}},[initialPolicyId,policies]);
 
   const byPolicy=useMemo(()=>{
     const out={};
@@ -50,6 +51,7 @@ export default function Billing({staff}){
   const delinquent=policies.filter(p=>["late","grace_period","cancellation_pending"].includes(p.billingStatus)).length;
 
   return <section className="content">
+    <div className="workflow-ribbon service-ribbon"><span>Customer</span><span>Quote</span><span>Policy</span><strong>Billing</strong><span>Delinquency</span><span>Resolution</span></div>
     <div className="page-heading"><div><div className="eyebrow">PREMIUM OPERATIONS</div><h1>Billing</h1><p>Post premium activity, track account status, and manage delinquency workflows.</p></div></div>
 
     <div className="metric-grid">
