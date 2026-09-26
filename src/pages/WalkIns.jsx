@@ -6,13 +6,14 @@ import {can,PERMISSIONS} from "../permissions";
 
 const empty={firstName:"",lastName:"",phone:"",email:"",reason:"new_quote",productInterest:"auto",priority:"normal",notes:""};
 
-export default function WalkIns({staff,onNavigate}){
+export default function WalkIns({staff,onNavigate,openNew}){
   const [walkIns,setWalkIns]=useState([]),[open,setOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState(empty);
   async function load(){
     const snap=await getDocs(collection(db,"walkIns"));
     setWalkIns(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.checkedInAt?.seconds||0)-(a.checkedInAt?.seconds||0)));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{if(openNew)setOpen(true)},[openNew]);
 
   const waiting=walkIns.filter(w=>w.status==="waiting");
   const active=walkIns.filter(w=>w.status==="in_service");
@@ -89,6 +90,7 @@ export default function WalkIns({staff,onNavigate}){
   }
 
   return <section className="content walkins-page">
+    <div className="workflow-ribbon"><strong>Intake</strong><span>Customer</span><span>Quote</span><span>Underwriting</span><span>Policy</span><span>Service</span></div>
     <div className="page-heading">
       <div><div className="eyebrow">FRONT OFFICE</div><h1>Walk-in Desk</h1><p>Check people in, manage the live lobby, and hand them directly into the customer and quote workflow.</p></div>
       {can(staff,PERMISSIONS.WALKIN_CREATE)&&<button className="primary compact" onClick={()=>setOpen(true)}><Plus size={17}/> Check in walk-in</button>}
