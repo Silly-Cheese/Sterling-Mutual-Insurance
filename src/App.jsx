@@ -87,7 +87,7 @@ function Login(){
 export default function App(){
   const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
-  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[]}),[recentCustomers,setRecentCustomers]=useState([]),[favoriteCustomers,setFavoriteCustomers]=useState([]);
+  const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[]}),[recentCustomers,setRecentCustomers]=useState([]),[favoriteCustomers,setFavoriteCustomers]=useState([]);
   const searchRef=useRef(null);
   const refreshShortcuts=()=>{
     try{
@@ -106,6 +106,8 @@ export default function App(){
     ...opsData.claims.filter(x=>x.coverageStatus==="pending"&&can(staff,PERMISSIONS.CLAIM_READ)).map(x=>({title:x.claimNumber,detail:"Coverage decision pending",page:"Claims",context:{customerId:x.customerId}})),
     ...opsData.policies.filter(x=>x.status==="renewal_pending"&&can(staff,PERMISSIONS.POLICY_READ)).map(x=>({title:x.policyNumber,detail:"Renewal offer pending",page:"Policies",context:{customerId:x.customerId}})),
     ...opsData.serviceRequests.filter(x=>x.status==="submitted"&&can(staff,PERMISSIONS.SERVICE_REQUEST_READ)).map(x=>({title:x.customerName||"Customer request",detail:String(x.type||"service request").replaceAll("_"," "),page:"Customer Workspace",context:{customerId:x.customerId}})),
+    ...opsData.invoices.filter(x=>!["paid","void"].includes(x.status)&&x.dueDate&&x.dueDate<new Date().toISOString().slice(0,10)&&can(staff,PERMISSIONS.BILLING_READ)).map(x=>({title:x.customerName||x.policyNumber,detail:"Past-due invoice • "+x.policyNumber,page:"Billing",context:{policyId:x.policyId}})),
+    ...opsData.cancellations.filter(x=>x.status==="open"&&can(staff,PERMISSIONS.POLICY_READ)).map(x=>({title:x.customerName||x.policyNumber,detail:"Cancellation "+String(x.stage||"pending").replaceAll("_"," "),page:"Cancellations"})),
     ...opsData.approvals.filter(x=>x.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_READ)).map(x=>({title:x.title||"Approval required",detail:x.summary||x.actionType,page:"Company"}))
   ].slice(0,12);
 
@@ -115,14 +117,15 @@ export default function App(){
     window.addEventListener("keydown",key);
     (async()=>{
       const safe=async n=>{try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
-      const [customers,policies,claims,quotes,walkIns,serviceRequests,approvals]=await Promise.all(["customers","policies","claims","quotes","walkIns","serviceRequests","approvals"].map(safe));
+      const [customers,policies,claims,quotes,walkIns,serviceRequests,approvals,assets,invoices,cancellations]=await Promise.all(["customers","policies","claims","quotes","walkIns","serviceRequests","approvals","insuredAssets","billingInvoices","policyCancellations"].map(safe));
       setSearchRecords([
         ...customers.map(x=>({type:"Customer",label:x.displayName||x.email||"Customer",sub:x.email||x.phone||"",searchText:[x.displayName,x.email,x.phone].filter(Boolean).join(" ").toLowerCase(),page:"Customer Workspace",context:{customerId:x.id}})),
         ...policies.map(x=>({type:"Policy",label:x.policyNumber,sub:x.customerName||"",searchText:[x.policyNumber,x.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Policies",context:{customerId:x.customerId}})),
         ...claims.map(x=>({type:"Claim",label:x.claimNumber,sub:x.customerName||"",searchText:[x.claimNumber,x.customerName,x.policyNumber].filter(Boolean).join(" ").toLowerCase(),page:"Claims",context:{customerId:x.customerId}})),
-        ...quotes.map(x=>({type:"Quote",label:x.quoteNumber,sub:x.customerName||"",searchText:[x.quoteNumber,x.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Quotes & Applications",context:{customerId:x.customerId}}))
+        ...quotes.map(x=>({type:"Quote",label:x.quoteNumber,sub:x.customerName||"",searchText:[x.quoteNumber,x.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Quotes & Applications",context:{customerId:x.customerId}})),
+        ...assets.map(x=>{const p=policies.find(p=>p.id===x.policyId);return {type:"Insured Asset",label:x.vin||x.description||"Insured asset",sub:p?.policyNumber||"",searchText:[x.vin,x.description,p?.policyNumber,p?.customerName].filter(Boolean).join(" ").toLowerCase(),page:"Policies",context:{customerId:x.customerId}}})
       ]);
-      setOpsData({walkIns,quotes,claims,policies,serviceRequests,approvals});
+      setOpsData({walkIns,quotes,claims,policies,serviceRequests,approvals,invoices,cancellations});
     })();
     return()=>window.removeEventListener("keydown",key);
   },[staff]);
