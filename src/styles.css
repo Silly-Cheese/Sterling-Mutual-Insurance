@@ -249,3 +249,48 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 @media(max-width:520px){.customer-kpis{grid-template-columns:1fr}.application-checklist{grid-template-columns:1fr}.notification-menu{position:fixed;left:12px;right:12px;top:74px;width:auto}.appointment-card{grid-template-columns:60px 1fr}.appointment-actions{grid-column:2;flex-wrap:wrap}}
 
 .sidebar-shortcuts{border-top:1px solid #ffffff0b;padding-top:8px;margin-top:4px}.shortcut-item{border:0;background:none;color:#8fa09b;border-radius:8px;padding:7px 10px;display:grid;grid-template-columns:18px minmax(0,1fr);gap:7px;text-align:left;align-items:center;width:100%}.shortcut-item:hover{background:#ffffff0a;color:#fff}.shortcut-item span{font-size:10px;color:#c9b98f}.shortcut-item b{font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+
+/* Billing, claims, and cancellation depth */
+.billing-past-due{border-left:3px solid #b66d2f;background:#fffaf4}
+.billing-account-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#14352d;color:#fff;border-radius:12px;padding:15px}
+.billing-account-hero span{display:block;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#b8c7c1;margin-bottom:4px}
+.billing-account-hero strong{font-size:16px}
+.billing-overview-grid,.billing-tab-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.billing-overview-grid .panel,.billing-tab-grid .panel{min-height:0}
+.invoice-list>div,.plan-list>div{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:11px;align-items:center;padding:13px 15px;border-top:1px solid #e7ebe8}
+.invoice-list>div.overdue{background:#fff8ef;border-left:3px solid #bd7330}
+.invoice-list strong,.invoice-list span,.plan-list strong,.plan-list span{display:block}
+.invoice-list span,.plan-list span{font-size:10px;color:#7d8885;margin-top:3px}
+.invoice-list>div>div:last-child{text-align:right}
+.payment-plan-preview>div{border:1px solid #e3e8e4;background:#f8faf8;border-radius:10px;padding:13px}
+.payment-plan-preview strong,.payment-plan-preview span{display:block}
+.payment-plan-preview span{font-size:11px;color:#78837f;margin-top:3px}
+.delinquency-workflow{display:grid;gap:14px}
+.delinquency-steps,.cancellation-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.delinquency-steps>div,.cancellation-steps>div{background:#f3f5f3;border:1px solid #e1e6e2;border-radius:10px;padding:12px;display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:center;color:#77817e}
+.delinquency-steps>div>span,.cancellation-steps>div>span{width:24px;height:24px;border-radius:99px;background:#e0e5e2;display:grid;place-items:center;font-size:10px;font-weight:800}
+.delinquency-steps>div.active,.cancellation-steps>div.done{background:#e9f1ec;border-color:#c9d9d0;color:#2f5c4f}
+.delinquency-steps>div.active>span,.cancellation-steps>div.done>span{background:#315f53;color:white}
+
+.claim-summary-grid,.claim-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.claim-summary-grid .panel,.claim-two-col .panel{min-height:0}
+.claim-contact-list>div{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:13px 15px;border-top:1px solid #e7ebe8}
+.claim-contact-list strong,.claim-contact-list span,.claim-contact-list small{display:block}
+.claim-contact-list span{color:#596662;font-size:11px;margin-top:3px}
+.claim-contact-list small{color:#89938f;font-size:9px;margin-top:4px}
+.estimate-list{display:grid;margin-top:10px}.estimate-list>div{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #e5e9e6;font-size:11px}
+.claim-close-panel{border:1px solid #dce5df;background:#f7faf7;border-radius:12px;padding:16px}
+.claim-close-panel h3{font-family:"Libre Caslon Display",serif;font-size:25px;font-weight:400;margin:4px 0 14px}
+.close-checks{display:grid;gap:7px;margin-bottom:14px}.close-checks>div{display:grid;grid-template-columns:24px 1fr auto;gap:9px;align-items:center;padding:10px 11px;border-radius:9px;border:1px solid #e2e7e3;background:white}.close-checks>div.ok{color:#315f53}.close-checks>div.missing{color:#8a5e31;background:#fffaf4}.close-checks strong{font-size:10px}
+
+.cancellation-create,.cancellation-panel{display:grid;gap:14px}
+.cancellation-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;background:#fff8ef;border:1px solid #eddac0;border-radius:12px;padding:14px}
+.cancellation-header h3{font-family:"Libre Caslon Display",serif;font-size:25px;font-weight:400;margin:4px 0}.cancellation-header p{margin:0;color:#755d46}
+.cancellation-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cancelled-state{border:1px solid #ebd0d0;background:#fff7f7;border-radius:12px;padding:16px}.cancelled-state h3{font-family:"Libre Caslon Display",serif;font-weight:400;font-size:25px;margin:5px 0}
+.cancellation-history{border-top:1px solid #e5e9e6;margin-top:2px;padding-top:8px}
+.status-pill.notice_pending,.status-pill.notice_sent,.status-pill.pending_effective{background:#fff0d8;color:#875d22}
+
+@media(max-width:900px){.billing-account-hero{grid-template-columns:1fr 1fr}.billing-overview-grid,.billing-tab-grid,.claim-summary-grid,.claim-two-col{grid-template-columns:1fr}.delinquency-steps,.cancellation-steps{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.billing-account-hero,.delinquency-steps,.cancellation-steps{grid-template-columns:1fr}.cancellation-header{flex-direction:column}}
