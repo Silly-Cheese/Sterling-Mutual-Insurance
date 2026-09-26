@@ -178,6 +178,13 @@ service cloud.firestore {
     }
 
 
+
+    match /billingCredits/{creditId} {
+      allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
+      allow create, update: if hasPermission("billing.manage");
+      allow delete: if false;
+    }
+
     match /billingInvoices/{invoiceId} {
       allow read: if hasPermission("billing.read") || hasPermission("finance.read") || ownsCustomer(resource.data.customerId);
       allow create, update: if hasPermission("billing.manage");
@@ -197,7 +204,7 @@ service cloud.firestore {
     }
 
     match /policyCancellations/{cancellationId} {
-      allow read: if hasPermission("policy.read") || hasPermission("billing.read");
+      allow read: if hasPermission("policy.read") || hasPermission("billing.read") || ownsCustomer(resource.data.customerId);
       allow create: if hasPermission("policy.update") || hasPermission("billing.manage");
       allow update: if hasPermission("policy.update") || hasPermission("billing.manage");
       allow delete: if false;
