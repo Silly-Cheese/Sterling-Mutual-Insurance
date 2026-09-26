@@ -7,6 +7,7 @@ import {can,PERMISSIONS} from "../permissions";
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v||0));
 const today=()=>new Date().toISOString().slice(0,10);
 const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
+const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().slice(-7);
 
 export default function Billing({staff,initialPolicyId}){
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[tab,setTab]=useState("overview");
@@ -62,6 +63,7 @@ export default function Billing({staff,initialPolicyId}){
       remaining-=applied;
       await updateDoc(doc(db,"billingInvoices",inv.id),{balanceDue:Math.max(0,current-applied),status:current-applied<=0?"paid":"partial",lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
     }
+    return remaining;
   }
 
   async function postTransaction(e){
@@ -73,7 +75,8 @@ export default function Billing({staff,initialPolicyId}){
     }
     await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type,amount:value,note,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     if(type==="payment"){
-      await allocatePayment(selected,value);
+      const unapplied=await allocatePayment(selected,value);
+      if(unapplied>0)await addDoc(collection(db,"billingCredits"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,amount:unapplied,status:"unapplied",source:"payment_overage",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
       await updateDoc(doc(db,"policies",selected.id),{lastPaymentAmount:value,lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
       await logEvent(selected,"payment.posted","Payment posted",{amount:value});
     }else await logEvent(selected,"transaction.posted",type+" posted",{amount:value,note});
@@ -96,10 +99,18 @@ export default function Billing({staff,initialPolicyId}){
   async function createInvoice(e){
     e.preventDefault();if(!selected)return;
     const value=Number(invoiceForm.amount||0);
-    await addDoc(collection(db,"billingInvoices"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,description:invoiceForm.description,amount:value,balanceDue:value,dueDate:invoiceForm.dueDate,status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    await addDoc(collection(db,"billingInvoices"),{invoiceNumber:invoiceNo(),policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,description:invoiceForm.description,amount:value,balanceDue:value,dueDate:invoiceForm.dueDate,status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type:"charge",amount:value,note:invoiceForm.description,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     await logEvent(selected,"invoice.created","Invoice created",{amount:value,dueDate:invoiceForm.dueDate});
     setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
+  }
+
+  async function generateStatement(){
+    if(!selected)return;
+    const open=(invoiceByPolicy[selected.id]||[]).filter(i=>!["paid","void"].includes(i.status));
+    const amount=open.reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);
+    await addDoc(collection(db,"documents"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,type:"billing_statement",title:"Billing Statement",status:"available",statementDate:today(),amountDue:amount,invoiceIds:open.map(i=>i.id),createdAt:serverTimestamp(),createdBy:staff.id});
+    await logEvent(selected,"statement.generated","Billing statement generated",{amountDue:amount,invoiceCount:open.length});await load();
   }
 
   async function createPaymentPlan(e){
@@ -159,7 +170,7 @@ export default function Billing({staff,initialPolicyId}){
 
       {tab==="overview"&&<div className="billing-overview-grid"><article className="panel"><div className="eyebrow">ACCOUNT HEALTH</div><h3>{overdue(selected).length?"Past due":"Account current"}</h3><p>{overdue(selected).length?overdue(selected).length+" invoice(s) are beyond their due date.":"No overdue invoices detected."}</p>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="billing-form" onSubmit={postTransaction}><div className="three-col"><label>Transaction<select value={type} onChange={e=>setType(e.target.value)}><option value="payment">Payment</option><option value="charge">Charge</option><option value="credit">Credit</option><option value="refund">Refund</option><option value="returned_payment">Returned payment / NSF</option><option value="write_off">Write-off</option><option value="adjustment">Manual adjustment</option></select></label><label>Amount<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></label><label>Note<input value={note} onChange={e=>setNote(e.target.value)}/></label></div><button className="primary compact">Post transaction</button></form>}</article><article className="panel"><div className="eyebrow">ACTIVE PLAN</div>{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").length?<div className="payment-plan-preview">{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").map(p=><div key={p.id}><strong>{money(p.totalAmount)}</strong><span>{p.installmentCount} installments • {money(p.installmentAmount)} each</span></div>)}</div>:<div className="queue-empty"><RefreshCw size={26}/><h3>No payment plan.</h3></div>}</article></div>}
 
-      {tab==="invoices"&&<div className="billing-tab-grid"><form className="panel invoice-form" onSubmit={createInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create premium invoice</h3><label>Description<input value={invoiceForm.description} onChange={e=>setInvoiceForm({...invoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0" step="0.01" value={invoiceForm.amount} onChange={e=>setInvoiceForm({...invoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm({...invoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form><div className="table-card"><div className="table-toolbar"><strong>Invoices</strong><span>{(invoiceByPolicy[selected.id]||[]).length}</span></div><div className="invoice-list">{(invoiceByPolicy[selected.id]||[]).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.description}</strong><span>Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div></div></div>}
+      {tab==="invoices"&&<div className="billing-tab-grid"><form className="panel invoice-form" onSubmit={createInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create premium invoice</h3><label>Description<input value={invoiceForm.description} onChange={e=>setInvoiceForm({...invoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0" step="0.01" value={invoiceForm.amount} onChange={e=>setInvoiceForm({...invoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm({...invoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form><div className="table-card"><div className="table-toolbar"><strong>Invoices</strong><button className="secondary compact" type="button" onClick={generateStatement}>Generate statement</button><span>{(invoiceByPolicy[selected.id]||[]).length}</span></div><div className="invoice-list">{(invoiceByPolicy[selected.id]||[]).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description}</strong><span>Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div></div></div>}
 
       {tab==="ledger"&&<div className="ledger"><div className="table-toolbar"><strong>Account ledger</strong><span>{(byPolicy[selected.id]||[]).length} entries</span></div>{(byPolicy[selected.id]||[]).length===0?<div className="empty-state compact-empty">No transactions yet.</div>:(byPolicy[selected.id]||[]).map(t=><div className="ledger-row" key={t.id}><div><strong>{t.type.replaceAll("_"," ")}</strong><span>{t.note||"No note"} • {t.createdByName||"Staff"}</span></div><strong className={["payment","credit"].includes(t.type)?"credit-amount":""}>{["payment","credit","write_off"].includes(t.type)?"−":"+"}{money(t.amount)}</strong>{can(staff,PERMISSIONS.BILLING_MANAGE)&&t.status!=="reversed"&&<button className="link-button ledger-reverse" onClick={()=>reverseTransaction(t)}>Reverse</button>}{t.status==="reversed"&&<span className="status-pill">reversed</span>}</div>)}</div>}
 
