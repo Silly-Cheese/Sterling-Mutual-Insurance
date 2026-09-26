@@ -82,6 +82,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /walkIns/{walkInId} {
+      allow read: if hasPermission("walkin.read");
+      allow create: if hasPermission("walkin.create")
+                    && request.resource.data.status == "waiting";
+      allow update: if hasPermission("walkin.manage");
+      allow delete: if false;
+    }
+
     match /customers/{customerId} {
       allow read: if hasPermission("customer.read") || ownsCustomer(customerId);
       allow create: if hasPermission("customer.create");
