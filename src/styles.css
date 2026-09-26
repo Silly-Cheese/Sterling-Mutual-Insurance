@@ -94,3 +94,100 @@ select,textarea{font:inherit;border:1px solid #ccd3cf;border-radius:10px;padding
   .walkin-card>.primary{grid-column:2;width:100%}
   .walkin-history-list>div{grid-template-columns:1fr}
 }
+
+
+/* Product shell refinement */
+:root{
+  --surface:#f6f7f5;
+  --paper:#ffffff;
+  --paper-soft:#f9faf8;
+  --green3:#0f3028;
+  --gold:#c9b98f;
+  --shadow:0 12px 34px rgba(25,49,41,.07);
+}
+body{background:var(--surface)}
+.sidebar{background:linear-gradient(180deg,#111b1c 0%,#0d1718 100%);box-shadow:8px 0 30px rgba(10,24,20,.04)}
+.sidebar-brand{padding:22px 18px}
+.sidebar nav{overflow-y:auto;padding-top:14px}
+.nav-item{transition:background .15s,color .15s,transform .15s}
+.nav-item:hover{transform:translateX(2px)}
+.nav-item.active{background:#ffffff10;box-shadow:inset 2px 0 var(--gold)}
+.main{background:linear-gradient(180deg,#fafbf9 0,#f4f6f3 260px)}
+.content{padding-top:28px}
+.page-heading{margin-bottom:20px}
+.page-heading h1{font-size:40px;line-height:1.05}
+.page-heading p{max-width:720px;line-height:1.5}
+.panel,.table-card,.metric-card{box-shadow:0 1px 0 rgba(10,30,24,.02)}
+.table-card{overflow:hidden}
+.table-toolbar{background:#fbfcfa;padding:13px 16px}
+.metric-card{transition:border-color .15s,box-shadow .15s,transform .15s}
+.metric-button:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+
+/* Top command layer */
+.topbar{height:72px;background:rgba(250,251,249,.94);backdrop-filter:blur(14px);padding:0 24px;gap:14px}
+.topbar-page{display:flex;flex-direction:column;min-width:150px}
+.topbar-page span{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:#8a9491;font-weight:800}
+.topbar-page strong{font-size:13px;color:#26332f;margin-top:2px}
+.command-search{position:relative;display:flex;align-items:center;gap:8px;background:#edf1ee;border:1px solid transparent;border-radius:10px;padding:9px 11px;width:min(380px,38vw);color:#81908b}
+.command-search:focus-within{background:#fff;border-color:#c9d3ce;box-shadow:0 0 0 3px rgba(73,123,109,.08)}
+.command-search input{border:0;background:transparent;padding:0;box-shadow:none;width:100%}
+.command-results{position:absolute;top:45px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:0 18px 45px rgba(15,35,29,.14);padding:6px;z-index:40}
+.command-results button{width:100%;border:0;background:transparent;border-radius:8px;padding:9px 10px;display:flex;align-items:center;gap:9px;text-align:left;color:#384640}
+.command-results button:hover{background:#f1f4f1}
+.new-menu-wrap{position:relative;margin-left:auto}
+.topbar-new{white-space:nowrap}
+.new-menu{position:absolute;top:46px;right:0;width:270px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 45px rgba(15,35,29,.14);padding:7px;z-index:45}
+.new-menu button{border:0;background:transparent;width:100%;display:grid;grid-template-columns:30px 1fr;gap:8px;text-align:left;padding:10px;border-radius:8px;color:#34413e}
+.new-menu button:hover{background:#f2f5f2}
+.new-menu button>svg{margin-top:2px;color:#356555}
+.new-menu strong,.new-menu small{display:block}
+.new-menu small{color:#84908d;margin-top:2px;font-size:10px}
+.environment{margin-left:0}
+
+/* Journey + handoffs */
+.workflow-ribbon{display:flex;align-items:center;gap:0;margin-bottom:18px;border:1px solid var(--line);border-radius:11px;background:#fff;overflow:hidden;width:max-content;max-width:100%;box-shadow:0 1px 0 rgba(20,40,34,.02)}
+.workflow-ribbon span,.workflow-ribbon strong{position:relative;padding:8px 18px 8px 20px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;color:#84908d}
+.workflow-ribbon strong{background:#e9f0ec;color:#285c4d}
+.workflow-ribbon span:not(:last-child)::after,.workflow-ribbon strong:not(:last-child)::after{content:"›";position:absolute;right:3px;color:#b2bbb7;font-size:15px;top:3px}
+.service-ribbon strong{background:#e8eef2;color:#355a66}
+.record-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.record-summary>div{background:#f6f8f6;border:1px solid #e3e8e4;border-radius:10px;padding:13px}
+.record-summary span{display:block;color:#83908d;font-size:10px;text-transform:uppercase;letter-spacing:.07em}
+.record-summary strong{display:block;margin-top:5px;color:#2f3d39}
+.next-actions{border:1px solid #dce5df;background:linear-gradient(135deg,#f7faf7,#eef4f0);border-radius:12px;padding:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.next-actions>div:first-child{margin-right:auto}
+.next-actions h3{margin:3px 0 0;font-family:"Libre Caslon Display",serif;font-weight:400;font-size:21px}
+.record-handoff{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #dfe6e2;background:#f7f9f7;border-radius:11px;padding:12px 14px}
+.record-handoff>span{font-size:11px;font-weight:700;color:#63706c}
+.record-handoff>div{display:flex;gap:7px;flex-wrap:wrap}
+
+/* More intentional forms and rows */
+.modal{border:1px solid #ffffff66}
+.modal.wide{width:min(760px,100%)}
+.customer-detail{width:min(650px,100%)}
+.customer-row,.policy-row,.quote-row{transition:background .12s,transform .12s}
+.customer-row:hover,.policy-row:hover,.quote-row:hover{background:#f7f9f7}
+.status-pill{text-transform:uppercase}
+input,select,textarea{transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3px rgba(73,123,109,.09)}
+.primary,.secondary{transition:transform .12s,background .12s,box-shadow .12s}
+.primary:hover,.secondary:hover{transform:translateY(-1px)}
+.primary:hover{box-shadow:0 6px 16px rgba(24,62,53,.15)}
+
+@media(max-width:900px){
+  .topbar-page{display:none}
+  .command-search{width:100%}
+  .workflow-ribbon{width:100%;overflow-x:auto}
+  .workflow-ribbon span,.workflow-ribbon strong{flex:0 0 auto}
+  .record-handoff{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:560px){
+  .topbar{gap:8px;padding:0 12px}
+  .environment{display:none}
+  .topbar-new{padding:10px 11px}
+  .topbar-new svg:last-child{display:none}
+  .record-summary{grid-template-columns:1fr}
+  .next-actions{align-items:stretch;flex-direction:column}
+  .next-actions>div:first-child{margin-right:0}
+  .next-actions button{width:100%}
+}
