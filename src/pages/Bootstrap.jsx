@@ -1,28 +1,96 @@
 import {useState} from "react";
-import {Building2,CheckCircle2,KeyRound,ShieldCheck} from "lucide-react";
-import {signInWithEmailAndPassword} from "firebase/auth";
-import {auth} from "../firebase";
+import {Building2,CheckCircle2,ShieldCheck} from "lucide-react";
+import {doc,writeBatch,serverTimestamp} from "firebase/firestore";
+import {db} from "../firebase";
 
-export default function Bootstrap({onBack,homePath}){
-  const [form,setForm]=useState({code:"",displayName:"",email:"",password:""});
-  const [status,setStatus]=useState("idle"),[message,setMessage]=useState("");
-  const update=k=>e=>setForm(v=>({...v,[k]:e.target.value}));
-  async function submit(e){
-    e.preventDefault(); setStatus("loading"); setMessage("");
+export default function Bootstrap({user,onComplete,onSignOut}){
+  const [status,setStatus]=useState("idle");
+  const [message,setMessage]=useState("");
+
+  async function initialize(){
+    if(!user)return;
+    setStatus("loading"); setMessage("");
     try{
-      const endpoint=import.meta.env.VITE_BOOTSTRAP_ENDPOINT;
-      if(!endpoint) throw new Error("Bootstrap service is not configured.");
-      const res=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.error||"Bootstrap failed.");
-      setStatus("success"); setMessage("Sterling Mutual has been initialized. Signing you in…");
-      await signInWithEmailAndPassword(auth,form.email,form.password);
-      history.replaceState(null,"",homePath||import.meta.env.BASE_URL||"/");
-    }catch(err){setStatus("error");setMessage(err.message)}
+      const batch=writeBatch(db);
+      const staffRef=doc(db,"staff",user.uid);
+      const bootRef=doc(db,"system","bootstrap");
+      const auditRef=doc(db,"auditLogs","bootstrap-000001");
+      const name=(user.displayName||user.email?.split("@")[0]||"Founder").trim();
+
+      batch.set(staffRef,{
+        employeeId:"SMI-000001",
+        authUid:user.uid,
+        displayName:name,
+        email:(user.email||"").toLowerCase(),
+        role:"founder",
+        department:"executive",
+        title:"Founder / Chief Executive Officer",
+        status:"active",
+        permissions:["*"],
+        createdAt:serverTimestamp(),
+        createdBy:"bootstrap"
+      });
+
+      batch.set(bootRef,{
+        state:"initialized",
+        initialized:true,
+        initializedBy:user.uid,
+        initializedAt:serverTimestamp(),
+        bootstrapVersion:1
+      });
+
+      batch.set(auditRef,{
+        sequence:1,
+        eventType:"system.bootstrap.completed",
+        actorUid:user.uid,
+        actorEmployeeId:"SMI-000001",
+        actorDisplayName:name,
+        summary:"Sterling Mutual Insurance initialized",
+        details:{authorization:"Founder / System Owner",bootstrapVersion:1},
+        createdAt:serverTimestamp()
+      });
+
+      await batch.commit();
+      setStatus("success");
+      setMessage("Sterling Mutual has been initialized.");
+      onComplete?.();
+    }catch(err){
+      console.error(err);
+      setStatus("error");
+      setMessage(err?.code==="permission-denied"
+        ?"Initialization was blocked by Firestore security rules. Make sure the updated rules have been published."
+        :"Sterling Mutual could not be initialized. Please try again.");
+    }
   }
-  if(status==="success")return <div className="auth-shell"><div className="auth-card centered"><CheckCircle2 size={44}/><div className="eyebrow">INITIALIZATION COMPLETE</div><h1>Sterling Mutual is live.</h1><p>{message}</p></div></div>;
+
+  if(status==="success")return <div className="auth-shell"><div className="auth-card centered">
+    <CheckCircle2 size={44}/>
+    <div className="eyebrow">INITIALIZATION COMPLETE</div>
+    <h1>Sterling Mutual is live.</h1>
+    <p>{message}</p>
+  </div></div>;
+
   return <div className="bootstrap-layout">
-    <section className="bootstrap-hero"><div className="brand-lockup"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div></div><div className="bootstrap-copy"><div className="eyebrow">INITIAL ORGANIZATION BOOTSTRAP</div><h1>Establish the company’s first system owner.</h1><p>This process can be completed once. The first account receives Founder / Chief Executive Officer authority and the system records the company’s first audit event.</p><div className="security-list"><div><ShieldCheck/><span><strong>One-time initialization</strong><small>Bootstrap closes after successful setup.</small></span></div><div><KeyRound/><span><strong>Server-side secret verification</strong><small>The bootstrap code is never stored in the website source.</small></span></div><div><Building2/><span><strong>Founder authority</strong><small>The initial account receives system-owner access.</small></span></div></div></div></section>
-    <section className="bootstrap-panel"><button className="back-link" onClick={onBack}>← Back to sign in</button><form className="bootstrap-form" onSubmit={submit}><div><div className="eyebrow">STERLING MUTUAL</div><h2>Initial system setup</h2><p>Enter the private bootstrap credential and create the founder account.</p></div><label>Bootstrap code<input type="password" autoComplete="off" value={form.code} onChange={update("code")} required/></label><label>Founder name<input placeholder="Full display name" value={form.displayName} onChange={update("displayName")} required/></label><label>Email address<input type="email" value={form.email} onChange={update("email")} required/></label><label>Password<input type="password" minLength="10" value={form.password} onChange={update("password")} required/><small>Use at least 10 characters.</small></label>{message&&<div className={status==="error"?"error-box":"notice-box"}>{message}</div>}<button className="primary" disabled={status==="loading"}>{status==="loading"?"Initializing…":"Initialize Sterling Mutual"}</button><small className="legal-note">This creates the first privileged staff account and cannot be repeated after initialization.</small></form></section>
-  </div>
+    <section className="bootstrap-hero">
+      <div className="brand-lockup"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Insurance Group</span></div></div>
+      <div className="bootstrap-copy">
+        <div className="eyebrow">FIRST SIGN-IN SETUP</div>
+        <h1>Initialize Sterling Mutual.</h1>
+        <p>Your Firebase Authentication account is ready. Sterling Mutual can now create the company’s first Founder profile and permanently close initial setup.</p>
+        <div className="security-list">
+          <div><ShieldCheck/><span><strong>One-time initialization</strong><small>Only available while no company bootstrap record exists.</small></span></div>
+          <div><Building2/><span><strong>Founder authority</strong><small>Your signed-in Firebase account becomes SMI-000001 with full system access.</small></span></div>
+        </div>
+      </div>
+    </section>
+    <section className="bootstrap-panel">
+      <div className="bootstrap-form">
+        <div><div className="eyebrow">STERLING MUTUAL</div><h2>Ready to initialize</h2><p>Signed in as <strong>{user?.email}</strong>.</p></div>
+        {message&&<div className="error-box">{message}</div>}
+        <button className="primary" onClick={initialize} disabled={status==="loading"}>{status==="loading"?"Initializing…":"Initialize Sterling Mutual"}</button>
+        <button className="link-button" onClick={onSignOut}>Use a different account</button>
+        <small className="legal-note">This is a one-time company setup. After initialization, future accounts require staff authorization.</small>
+      </div>
+    </section>
+  </div>;
 }
