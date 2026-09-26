@@ -478,3 +478,515 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 @media(max-width:840px){
   .billing-control-deck{position:sticky}
 }
+
+
+/* =========================================================
+   Sterling Mutual Design System 2.0 — site-wide UX polish
+   ========================================================= */
+:root{
+  --ink:#17221f;
+  --muted:#6e7b76;
+  --line:#dfe5e1;
+  --paper:#ffffff;
+  --surface:#f7f9f7;
+  --surface-2:#eef3ef;
+  --green:#143d33;
+  --green2:#1e5949;
+  --green3:#2f6f5d;
+  --cream:#eee5cf;
+  --danger:#91453f;
+  --warning:#9a651f;
+  --shadow-sm:0 1px 2px rgba(17,36,30,.04),0 6px 20px rgba(17,36,30,.035);
+  --shadow-md:0 18px 50px rgba(17,36,30,.10);
+  --radius:14px;
+  --radius-lg:18px;
+}
+html{background:#f4f6f4}
+body{
+  background:
+    radial-gradient(circle at 78% -10%,rgba(55,106,87,.055),transparent 25rem),
+    #f4f6f4;
+  color:var(--ink);
+  line-height:1.45;
+}
+button,input,select,textarea{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease,transform .16s ease}
+button:active{transform:translateY(1px)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:3px solid rgba(62,124,103,.18);
+  outline-offset:2px;
+}
+
+/* Shell */
+.app-shell{grid-template-columns:264px minmax(0,1fr)}
+.sidebar{
+  width:264px;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.025),transparent 28%),
+    #0d1917;
+  border-right:1px solid rgba(255,255,255,.05);
+  box-shadow:8px 0 30px rgba(8,20,17,.04);
+}
+.sidebar-brand{padding:22px 18px}
+.sidebar-brand .brand-mark{box-shadow:inset 0 0 0 1px rgba(255,255,255,.07),0 8px 20px rgba(0,0,0,.12)}
+.sidebar nav{
+  padding:16px 10px 24px;
+  gap:9px;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:#29423b transparent;
+}
+.nav-group{display:grid;gap:3px}
+.nav-group-label{
+  padding:10px 10px 6px;
+  color:#63736e;
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.16em;
+}
+.nav-item{
+  min-height:41px;
+  padding:10px 11px;
+  border:1px solid transparent;
+  color:#93a39e;
+  font-size:12px;
+  font-weight:600;
+}
+.nav-item svg{opacity:.78}
+.nav-item:hover{background:#ffffff0a;border-color:#ffffff08;color:#eaf0ed}
+.nav-item.active{
+  background:linear-gradient(90deg,#23483e,#1c3932);
+  border-color:#ffffff0a;
+  color:#fff;
+  box-shadow:none;
+}
+.nav-item.active:before{
+  content:"";
+  width:3px;
+  height:20px;
+  border-radius:99px;
+  background:#d3c49b;
+  margin-left:-8px;
+}
+.sidebar-user{
+  background:#0b1614;
+  padding:14px 16px;
+}
+.sidebar-user .avatar{box-shadow:inset 0 0 0 1px #ffffff10}
+
+.main{grid-column:2;min-width:0}
+.topbar{
+  height:72px;
+  padding:0 26px;
+  gap:14px;
+  background:rgba(250,251,249,.93);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid #dde4df;
+  box-shadow:0 4px 18px rgba(21,43,36,.035);
+}
+.topbar-page{min-width:150px}
+.topbar-page span,.topbar-page strong{display:block}
+.topbar-page span{font-size:9px;color:#89948f;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-page strong{font-size:13px;margin-top:2px}
+.command-search{
+  position:relative;
+  width:min(540px,45vw);
+  height:40px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 11px;
+  background:#f0f3f0;
+  border:1px solid #e1e6e2;
+  border-radius:11px;
+  color:#89938f;
+}
+.command-search:focus-within{
+  background:#fff;
+  border-color:#82a397;
+  box-shadow:0 0 0 3px rgba(61,111,94,.08);
+}
+.command-search input{width:100%;padding:0;border:0;background:transparent;box-shadow:none}
+.command-results{
+  position:absolute;
+  top:46px;
+  left:0;
+  right:0;
+  z-index:80;
+  max-height:460px;
+  overflow:auto;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:13px;
+  box-shadow:var(--shadow-md);
+  padding:7px;
+}
+.command-results button{border-radius:8px}
+.environment{margin-left:0;padding:7px 9px;border-radius:999px;background:#eef5f0;color:#4f685f}
+.topbar-new{height:39px;box-shadow:0 6px 18px rgba(19,62,51,.14)}
+
+/* Main content rhythm */
+.content{
+  max-width:1540px;
+  padding:30px 32px 48px;
+}
+.page-heading{
+  align-items:flex-start;
+  margin-bottom:22px;
+}
+.page-heading>div:first-child{max-width:840px}
+.page-heading h1{
+  font-size:40px;
+  line-height:1.04;
+  letter-spacing:-.02em;
+  margin:5px 0 8px;
+}
+.page-heading p{
+  max-width:760px;
+  color:#73807b;
+  line-height:1.55;
+  font-size:13px;
+}
+.eyebrow{font-size:9px;letter-spacing:.16em;color:#71837c}
+.workflow-ribbon{
+  margin:-2px 0 20px;
+  padding:7px;
+  display:flex;
+  gap:4px;
+  overflow-x:auto;
+  background:#edf2ee;
+  border:1px solid #e0e6e2;
+  border-radius:11px;
+}
+.workflow-ribbon span,.workflow-ribbon strong{
+  white-space:nowrap;
+  padding:7px 10px;
+  border-radius:7px;
+  font-size:9px;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+.workflow-ribbon span{color:#75817d}
+.workflow-ribbon strong{background:#fff;color:#214f42;box-shadow:var(--shadow-sm)}
+
+/* Cards */
+.metric-grid{gap:12px}
+.metric-card,.panel,.table-card{
+  border-color:#dfe5e1;
+  box-shadow:var(--shadow-sm);
+}
+.metric-card{
+  position:relative;
+  overflow:hidden;
+  padding:17px 18px;
+  min-height:128px;
+}
+.metric-card:after{
+  content:"";
+  position:absolute;
+  right:-24px;
+  bottom:-34px;
+  width:90px;
+  height:90px;
+  border-radius:50%;
+  background:rgba(41,91,76,.035);
+}
+.metric-value{font-size:32px;margin-top:14px;line-height:1}
+.metric-label{font-size:11px;margin-top:8px}
+.metric-sub{font-size:9px}
+.metric-icon{width:31px;height:31px;border-radius:8px}
+.panel{padding:18px;border-radius:var(--radius);min-height:0}
+.panel h2{font-size:27px}
+.table-card{border-radius:var(--radius);overflow:hidden;background:#fff}
+.table-toolbar{
+  min-height:46px;
+  padding:11px 14px;
+  background:#fbfcfb;
+  color:#7e8b86;
+  border-bottom-color:#e2e7e4;
+}
+.table-toolbar strong{color:#33403c;font-size:11px}
+
+/* Lists / tables */
+.customer-row,.quote-row,.policy-row,.staff-row,.audit-row,.billing-customer-row,
+.siu-case-list>button,.work-list>button{
+  border-bottom-color:#edf0ee;
+}
+.customer-row:hover,.quote-row:hover,.policy-row:hover,.billing-customer-row:hover,
+.siu-case-list>button:hover,.work-list>button:hover{
+  background:#f8faf8;
+}
+.customer-row,.quote-row,.policy-row{min-height:66px}
+.product-icon{background:#edf3ef}
+.status-pill{
+  padding:5px 8px;
+  font-size:8px;
+  letter-spacing:.07em;
+  border:1px solid transparent;
+  text-transform:uppercase;
+}
+.status-pill.active,.status-pill.current,.status-pill.approved,.status-pill.issued{border-color:#cce0d5}
+.status-pill.cancelled,.status-pill.denied,.status-pill.terminated{border-color:#efd0cf}
+.status-pill.late,.status-pill.grace_period,.status-pill.cancellation_pending{border-color:#eed8b3}
+
+/* Controls */
+label{font-size:11px;color:#394742;gap:6px}
+input,select,textarea{
+  border-color:#d8dfda;
+  border-radius:9px;
+  padding:10px 11px;
+  font-size:12px;
+  background:#fff;
+}
+input:hover,select:hover,textarea:hover{border-color:#bdc9c3}
+.primary,.secondary{
+  min-height:38px;
+  border-radius:9px;
+  padding:10px 14px;
+  font-size:11px;
+  letter-spacing:.01em;
+}
+.primary{box-shadow:0 5px 16px rgba(20,61,51,.10)}
+.secondary{border:1px solid #e0e5e2;background:#f4f6f4}
+.secondary:hover{background:#e9eeeb}
+.danger-soft{border:1px solid #edd2d0}
+
+/* Tabs — consistent across the entire product */
+.record-tabs,.company-tabs{
+  gap:3px;
+  border-bottom:1px solid #e2e7e4;
+}
+.record-tabs{
+  padding:0 2px;
+  background:#fff;
+}
+.record-tabs button{
+  position:relative;
+  padding:10px 11px;
+  border-bottom:0;
+  color:#74807c;
+}
+.record-tabs button:after{
+  content:"";
+  position:absolute;
+  left:10px;
+  right:10px;
+  bottom:-1px;
+  height:2px;
+  border-radius:99px;
+  background:transparent;
+}
+.record-tabs button.active{color:#214f42;border-color:transparent}
+.record-tabs button.active:after{background:#214f42}
+.company-tabs{padding-bottom:7px}
+.company-tabs button{border-radius:9px;font-size:10px}
+
+/* Modals */
+.modal-backdrop{
+  background:rgba(7,16,15,.63);
+  backdrop-filter:blur(5px);
+  padding:18px;
+}
+.modal{
+  border:1px solid rgba(220,228,223,.9);
+  border-radius:18px;
+  padding:20px;
+  gap:14px;
+  box-shadow:0 30px 100px rgba(5,17,13,.27);
+}
+.modal-head{
+  align-items:flex-start;
+  gap:18px;
+}
+.modal-head h2{font-size:29px;line-height:1.1}
+.modal-head button{
+  width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#68746f
+}
+.modal-head button:hover{background:#eef2ef}
+.claim-detail{border-radius:18px}
+.claim-summary,.siu-command-header,.billing-account-hero,.policy-hero{
+  background:linear-gradient(135deg,#11372e,#1b4b3e);
+  border:1px solid #ffffff0b;
+}
+.modal-actions{
+  position:sticky;
+  bottom:-20px;
+  z-index:8;
+  padding:12px 0 0;
+  background:linear-gradient(transparent,#fff 30%);
+}
+
+/* Empty states */
+.empty-state,.queue-empty{padding:38px 18px}
+.empty-state svg,.queue-empty svg{opacity:.7}
+.empty-state h3,.queue-empty h3{font-family:"Libre Caslon Display",serif;font-size:22px;font-weight:400}
+.empty-state p,.queue-empty p{font-size:11px;color:#84908d}
+
+/* Dashboard / My Work */
+.quick-actions{gap:10px}
+.quick-actions>button{
+  border:1px solid #e0e6e2;
+  background:#fff;
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+}
+.quick-actions>button:hover{border-color:#cbd8d1;transform:translateY(-1px)}
+.work-filters,.cancellation-filters{
+  padding:5px;
+  background:#ebf0ec;
+  border:1px solid #dde4df;
+  border-radius:11px;
+  width:max-content;
+  max-width:100%;
+  overflow-x:auto;
+  flex-wrap:nowrap;
+}
+.work-filters button,.cancellation-filters button{
+  border:0;
+  background:transparent;
+}
+.work-filters button.active,.cancellation-filters button.active{
+  box-shadow:0 3px 10px rgba(20,61,51,.12);
+}
+
+/* Customer workspace */
+.customer-workspace-hero{
+  border:1px solid #ffffff0d;
+  box-shadow:0 18px 44px rgba(19,55,46,.12);
+}
+.customer-kpis{
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+}
+.customer-risk-strip>button{box-shadow:var(--shadow-sm)}
+.workspace-record-list>div,.service-request-list>div,.communication-list>div{border-top-color:#edf0ee}
+
+/* Billing */
+.customer-billing-detail,.billing-policy-detail{
+  width:min(1180px,calc(100vw - 36px));
+}
+.billing-control-deck{
+  margin:-20px -20px 0;
+  padding:18px 20px 0;
+  border-radius:18px 18px 0 0;
+}
+.billing-control-deck .billing-account-hero{border-radius:11px}
+.billing-account-hero{gap:1px;padding:0;background:#11392f;overflow:hidden}
+.billing-account-hero>div{padding:13px 15px;background:rgba(255,255,255,.025)}
+.billing-account-hero>div+div{border-left:1px solid #ffffff12}
+.customer-billing-overview{display:grid;gap:12px;overflow-y:auto;padding-top:14px}
+.billing-health-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.billing-health-strip>div{
+  border:1px solid #e0e6e2;
+  background:#fff;
+  border-radius:11px;
+  padding:13px;
+}
+.billing-health-strip span,.billing-health-strip strong,.billing-health-strip small{display:block}
+.billing-health-strip span{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:#87928e}
+.billing-health-strip strong{font-family:"Libre Caslon Display",serif;font-size:22px;font-weight:400;margin:3px 0}
+.billing-health-strip small{font-size:9px;color:#7c8883}
+.billing-quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.billing-quick-actions button{
+  border:1px solid #e0e6e2;
+  background:#fff;
+  border-radius:11px;
+  padding:12px;
+  display:grid;
+  grid-template-columns:28px 1fr;
+  gap:8px;
+  text-align:left;
+  color:#35433e;
+}
+.billing-quick-actions button:hover{background:#f7faf8;border-color:#cddad3}
+.billing-quick-actions button.attention{background:#fff8ef;border-color:#efd9ba;color:#805720}
+.billing-quick-actions strong,.billing-quick-actions small{display:block}
+.billing-quick-actions small{font-size:9px;color:#83908b;margin-top:2px}
+.customer-invoice-layout{
+  grid-template-columns:320px minmax(0,1fr);
+  position:relative;
+  padding-top:58px!important;
+}
+.customer-invoice-tools{
+  position:absolute;
+  top:12px;
+  left:0;
+  right:0;
+}
+.billing-list-controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  padding:8px;
+  border:1px solid #e0e6e2;
+  background:#f8faf8;
+  border-radius:10px;
+}
+.billing-list-controls input{flex:1;min-width:180px;background:#fff}
+.billing-list-controls>div{display:flex;gap:4px;overflow-x:auto}
+.billing-list-controls button{
+  border:0;background:transparent;color:#74807c;border-radius:7px;padding:7px 9px;font-size:9px;font-weight:700;text-transform:capitalize;white-space:nowrap
+}
+.billing-list-controls button.active{background:#173f35;color:#fff}
+.payment-controls{margin:10px 12px 0}
+.customer-payment-history{scrollbar-width:thin;scrollbar-color:#cbd5cf transparent}
+.customer-payment-history>div{min-height:66px}
+.customer-payment-history>div:hover{background:#f8faf8}
+.editable-plan-list>div{padding:14px 15px}
+
+/* Claims & SIU */
+.claim-summary{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.siu-command-header{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.claim-summary>div,.siu-command-header>div{padding:2px 4px}
+.claim-two-col,.siu-two-col{align-items:start}
+.claim-close-panel{box-shadow:var(--shadow-sm)}
+.investigation-progress>div{height:6px}
+
+/* Front office */
+.frontdesk-strip{
+  border:1px solid #e0e6e2;
+  background:#fff;
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+  overflow:hidden;
+}
+.frontdesk-strip>div{padding:14px 16px}
+.appointment-card,.walkin-card{transition:background .15s ease,border-color .15s ease}
+.appointment-card:hover,.walkin-card:hover{background:#f8faf8}
+
+/* Small-screen refinement */
+@media(max-width:1100px){
+  .content{padding:26px 24px 42px}
+  .command-search{width:min(420px,40vw)}
+  .billing-health-strip,.billing-quick-actions{grid-template-columns:1fr 1fr}
+}
+@media(max-width:900px){
+  .app-shell{grid-template-columns:1fr}
+  .main{grid-column:1}
+  .sidebar{width:270px}
+  .topbar{height:66px;padding:0 14px;gap:10px}
+  .topbar-page{display:none}
+  .command-search{width:auto;flex:1}
+  .content{padding:22px 18px 36px}
+  .page-heading{gap:14px}
+  .page-heading h1{font-size:35px}
+  .metric-grid{grid-template-columns:1fr 1fr}
+  .customer-invoice-layout{grid-template-columns:1fr;padding-top:58px!important}
+}
+@media(max-width:620px){
+  .topbar-new{padding:9px 10px}
+  .topbar-new svg:last-child{display:none}
+  .notification-button{width:36px;height:36px}
+  .content{padding:18px 12px 30px}
+  .page-heading h1{font-size:31px}
+  .page-heading p{font-size:12px}
+  .metric-grid{gap:8px}
+  .metric-card{padding:15px;min-height:112px}
+  .metric-value{font-size:28px}
+  .billing-health-strip,.billing-quick-actions{grid-template-columns:1fr}
+  .billing-control-deck{margin:-20px -20px 0;padding:16px 16px 0}
+  .billing-account-hero{grid-template-columns:1fr 1fr}
+  .record-tabs{overflow-x:auto}
+  .modal-backdrop{padding:8px}
+  .modal{padding:16px;border-radius:15px}
+  .customer-billing-detail,.billing-policy-detail{width:100%;max-height:96vh}
+}
