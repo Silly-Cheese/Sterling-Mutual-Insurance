@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {Building2,ClipboardList,FileCheck2,LayoutDashboard,LogOut,Menu,Search,ShieldCheck,Users,WalletCards,X} from "lucide-react";
-import {createUserWithEmailAndPassword,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
+import {createUserWithEmailAndPassword,deleteUser,onAuthStateChanged,signInWithEmailAndPassword,signOut,updateProfile} from "firebase/auth";
 import {doc,getDoc,serverTimestamp,setDoc} from "firebase/firestore";
 import {auth,db} from "./firebase";
 import Bootstrap from "./pages/Bootstrap";
@@ -28,6 +28,11 @@ function Login(){
         await signInWithEmailAndPassword(auth,form.email,form.password);
       }else{
         const credential=await createUserWithEmailAndPassword(auth,form.email,form.password);
+        const bootSnap=await getDoc(doc(db,"system","bootstrap"));
+        if(!bootSnap.exists()){
+          await deleteUser(credential.user);
+          throw new Error("COMPANY_NOT_INITIALIZED");
+        }
         await updateProfile(credential.user,{displayName:form.displayName.trim()});
         await setDoc(doc(db,"accounts",credential.user.uid),{
           authUid:credential.user.uid,
@@ -39,7 +44,8 @@ function Login(){
       }
     }catch(err){
       const code=err?.code||"";
-      if(code.includes("email-already-in-use"))setError("An account already exists with that email.");
+      if(err?.message==="COMPANY_NOT_INITIALIZED")setError("Sterling Mutual must be initialized by the Founder before public registration opens.");
+      else if(code.includes("email-already-in-use"))setError("An account already exists with that email.");
       else if(code.includes("weak-password"))setError("Choose a stronger password.");
       else if(code.includes("invalid-credential"))setError("We couldn't sign you in with those credentials.");
       else setError(mode==="signin"?"We couldn't sign you in with those credentials.":"We couldn't create your account.");
