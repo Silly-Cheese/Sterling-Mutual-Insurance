@@ -9,7 +9,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDate()+days);return d.toISOString().slice(0,10)};
 
 export default function Billing({staff,initialPolicyId}){
-  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[tab,setTab]=useState("overview");
+  const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[tab,setTab]=useState("overview");
   const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState("");
   const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"});
   const [planForm,setPlanForm]=useState({totalAmount:"",installments:"3",firstDueDate:""});
@@ -24,6 +24,19 @@ export default function Billing({staff,initialPolicyId}){
   useEffect(()=>{load().catch(()=>{})},[]);
   useEffect(()=>{if(initialPolicyId&&policies.length){const p=policies.find(x=>x.id===initialPolicyId);if(p)setSelected(p)}},[initialPolicyId,policies]);
 
+  const customerAccounts=useMemo(()=>{
+    const map={};
+    policies.forEach(p=>{
+      if(!map[p.customerId])map[p.customerId]={customerId:p.customerId,customerName:p.customerName,policies:[],openBalance:0,pastDue:0,statuses:new Set()};
+      map[p.customerId].policies.push(p);
+      map[p.customerId].statuses.add(p.billingStatus||"current");
+    });
+    Object.values(map).forEach(a=>{
+      a.openBalance=invoices.filter(i=>i.customerId===a.customerId&&!["paid","void"].includes(i.status)).reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);
+      a.pastDue=invoices.filter(i=>i.customerId===a.customerId&&!["paid","void"].includes(i.status)&&i.dueDate<today()).reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);
+    });
+    return Object.values(map);
+  },[policies,invoices]);
   const byPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,tx.filter(t=>t.policyId===p.id)])),[policies,tx]);
   const invoiceByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,invoices.filter(i=>i.policyId===p.id).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))])),[policies,invoices]);
   const planByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,plans.filter(x=>x.policyId===p.id)])),[policies,plans]);
@@ -123,7 +136,9 @@ export default function Billing({staff,initialPolicyId}){
 
     <div className="metric-grid"><article className="metric-card"><div className="metric-icon"><BadgeDollarSign size={19}/></div><div className="metric-value">{money(collected)}</div><div className="metric-label">Premium collected</div></article><article className="metric-card"><div className="metric-icon"><TriangleAlert size={19}/></div><div className="metric-value">{money(pastDueTotal)}</div><div className="metric-label">Past due balance</div></article><article className="metric-card"><div className="metric-icon"><CalendarClock size={19}/></div><div className="metric-value">{delinquent}</div><div className="metric-label">Delinquent accounts</div></article><article className="metric-card"><div className="metric-icon"><ReceiptText size={19}/></div><div className="metric-value">{money(refunds)}</div><div className="metric-label">Refunds</div></article></div>
 
-    <div className="table-card workflow-table"><div className="table-toolbar"><strong>Policy billing accounts</strong><span>{policies.length} accounts</span></div><div className="quote-list">{policies.map(p=>{const past=overdue(p);return <button className={"policy-row billing-row "+(past.length?"billing-past-due":"")} key={p.id} onClick={()=>{setSelected(p);setTab("overview");setDelinq({stage:p.billingStatus||"current",graceEnds:p.gracePeriodEnds||"",reason:"Nonpayment of premium"})}}><div className="product-icon"><CreditCard size={18}/></div><div className="quote-main"><strong>{p.customerName}</strong><span>{p.policyNumber} • {past.length?past.length+" overdue invoice(s)":"No overdue invoices"}</span></div><div className="quote-money"><strong>{money(invoiceBalance(p))}</strong><span>Open invoice balance</span></div><span className={"status-pill "+(p.billingStatus||"current")}>{(p.billingStatus||"current").replaceAll("_"," ")}</span></button>})}</div></div>
+    <div className="table-card workflow-table"><div className="table-toolbar"><strong>Customer billing accounts</strong><span>{customerAccounts.length} customers • {policies.length} policies</span></div><div className="billing-customer-list">{customerAccounts.map(a=><button className={"billing-customer-row "+(a.pastDue>0?"billing-past-due":"")} key={a.customerId} onClick={()=>setSelectedCustomer(a)}><div className="product-icon"><CreditCard size={18}/></div><div><strong>{a.customerName}</strong><span>{a.policies.length} policy account{a.policies.length===1?"":"s"} • {a.pastDue>0?money(a.pastDue)+" past due":"No past-due invoices"}</span></div><div><strong>{money(a.openBalance)}</strong><span>Total open balance</span></div><div className="billing-status-stack">{[...a.statuses].map(s=><span className={"status-pill "+s} key={s}>{s.replaceAll("_"," ")}</span>)}</div></button>)}</div></div>
+
+    {selectedCustomer&&!selected&&<div className="modal-backdrop"><div className="modal claim-detail"><div className="modal-head"><div><div className="eyebrow">CUSTOMER BILLING ACCOUNT</div><h2>{selectedCustomer.customerName}</h2><p>One financial relationship across all Sterling Mutual policies.</p></div><button onClick={()=>setSelectedCustomer(null)}><X/></button></div><div className="billing-account-hero"><div><span>Total open</span><strong>{money(selectedCustomer.openBalance)}</strong></div><div><span>Past due</span><strong>{money(selectedCustomer.pastDue)}</strong></div><div><span>Policies</span><strong>{selectedCustomer.policies.length}</strong></div><div><span>Account health</span><strong>{selectedCustomer.pastDue>0?"Needs attention":"Current"}</strong></div></div><div className="table-card account-policy-list"><div className="table-toolbar"><strong>Policies on this account</strong></div>{selectedCustomer.policies.map(p=><button key={p.id} onClick={()=>{setSelected(p);setTab("overview");setDelinq({stage:p.billingStatus||"current",graceEnds:p.gracePeriodEnds||"",reason:"Nonpayment of premium"})}}><div><strong>{p.policyNumber}</strong><span>{p.product?.toUpperCase()} • {p.status}</span></div><div><strong>{money(invoiceBalance(p))}</strong><span>{(p.billingStatus||"current").replaceAll("_"," ")}</span></div></button>)}</div></div></div>}
 
     {selected&&<div className="modal-backdrop"><div className="modal claim-detail"><div className="modal-head"><div><div className="eyebrow">BILLING ACCOUNT</div><h2>{selected.policyNumber}</h2><p>{selected.customerName}</p></div><button onClick={()=>setSelected(null)}><X/></button></div>
       <div className="billing-account-hero"><div><span>Open balance</span><strong>{money(invoiceBalance(selected))}</strong></div><div><span>Ledger balance</span><strong>{money(ledgerBalance(selected))}</strong></div><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Status</span><strong>{(selected.billingStatus||"current").replaceAll("_"," ")}</strong></div></div>
