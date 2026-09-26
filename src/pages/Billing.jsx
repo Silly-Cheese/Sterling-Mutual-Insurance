@@ -11,7 +11,7 @@ const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().s
 
 export default function Billing({staff,initialPolicyId}){
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[tab,setTab]=useState("overview");
-  const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState("");
+  const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState(""),[allocationMode,setAllocationMode]=useState("auto"),[allocationInvoiceId,setAllocationInvoiceId]=useState("");
   const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"});
   const [planForm,setPlanForm]=useState({totalAmount:"",installments:"3",firstDueDate:""});
   const [delinq,setDelinq]=useState({stage:"current",graceEnds:"",reason:"Nonpayment of premium"});
@@ -53,6 +53,38 @@ export default function Billing({staff,initialPolicyId}){
     await addDoc(collection(db,"billingEvents"),{policyId:policy.id,policyNumber:policy.policyNumber,customerId:policy.customerId,type,summary,details,actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
   }
 
+  async function allocateSpecificInvoice(policy,value,invoiceId){
+    const inv=(invoiceByPolicy[policy.id]||[]).find(i=>i.id===invoiceId&& !["paid","void"].includes(i.status));
+    if(!inv)return {remaining:value,allocated:0,invoice:null};
+    const current=Number(inv.balanceDue??inv.amount??0);
+    const applied=Math.min(current,value);
+    const remaining=Math.max(0,value-applied);
+    await updateDoc(doc(db,"billingInvoices",inv.id),{
+      balanceDue:Math.max(0,current-applied),
+      status:current-applied<=0?"paid":"partial",
+      lastPaymentAt:serverTimestamp(),
+      updatedAt:serverTimestamp()
+    });
+    return {remaining,allocated:applied,invoice:inv};
+  }
+
+  async function recordAllocation(policy,transactionId,invoice,amount,mode){
+    if(!invoice||!amount)return;
+    await addDoc(collection(db,"billingPaymentAllocations"),{
+      policyId:policy.id,
+      policyNumber:policy.policyNumber,
+      customerId:policy.customerId,
+      transactionId,
+      invoiceId:invoice.id,
+      invoiceNumber:invoice.invoiceNumber||"",
+      amount:Number(amount),
+      mode,
+      createdBy:staff.id,
+      createdByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+  }
+
   async function allocatePayment(policy,value){
     let remaining=value;
     const open=(invoiceByPolicy[policy.id]||[]).filter(i=>!["paid","void"].includes(i.status)).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
@@ -73,14 +105,37 @@ export default function Billing({staff,initialPolicyId}){
       await addDoc(collection(db,"approvals"),{actionType:"large_refund",title:"Large premium refund",summary:selected.policyNumber+" • "+money(value)+" refund",recordId:selected.id,customerId:selected.customerId,requestedAmount:value,status:"pending",requestedBy:staff.id,requestedByName:staff.displayName,createdAt:serverTimestamp()});
       await logEvent(selected,"refund.approval.requested","Large refund sent for approval",{amount:value});setAmount("");setNote("");return;
     }
-    await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type,amount:value,note,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+    const txRef=await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type,amount:value,note,status:"posted",allocationMode:type==="payment"?allocationMode:null,allocatedInvoiceId:type==="payment"&&allocationMode==="specific"?allocationInvoiceId:null,createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
     if(type==="payment"){
-      const unapplied=await allocatePayment(selected,value);
-      if(unapplied>0)await addDoc(collection(db,"billingCredits"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,amount:unapplied,status:"unapplied",source:"payment_overage",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
+      let unapplied=value;
+      let allocationSummary="Unapplied customer credit";
+      if(allocationMode==="specific"){
+        const result=await allocateSpecificInvoice(selected,value,allocationInvoiceId);
+        unapplied=result.remaining;
+        if(result.invoice){
+          await recordAllocation(selected,txRef.id,result.invoice,result.allocated,"specific");
+          allocationSummary=(result.invoice.invoiceNumber||"Selected invoice")+" • "+money(result.allocated)+" applied";
+        }
+      }else if(allocationMode==="auto"){
+        let remaining=value;
+        const open=(invoiceByPolicy[selected.id]||[]).filter(i=>!["paid","void"].includes(i.status)).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
+        for(const inv of open){
+          if(remaining<=0)break;
+          const current=Number(inv.balanceDue??inv.amount??0);
+          const applied=Math.min(current,remaining);
+          if(applied<=0)continue;
+          remaining-=applied;
+          await updateDoc(doc(db,"billingInvoices",inv.id),{balanceDue:Math.max(0,current-applied),status:current-applied<=0?"paid":"partial",lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
+          await recordAllocation(selected,txRef.id,inv,applied,"auto");
+        }
+        unapplied=remaining;
+        allocationSummary="Automatically allocated to open invoices";
+      }
+      if(unapplied>0)await addDoc(collection(db,"billingCredits"),{customerId:selected.customerId,policyId:selected.id,policyNumber:selected.policyNumber,amount:unapplied,status:"unapplied",source:allocationMode==="unapplied"?"early_payment":"payment_overage",paymentTransactionId:txRef.id,createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
       await updateDoc(doc(db,"policies",selected.id),{lastPaymentAmount:value,lastPaymentAt:serverTimestamp(),updatedAt:serverTimestamp()});
-      await logEvent(selected,"payment.posted","Payment posted",{amount:value});
+      await logEvent(selected,"payment.posted","Payment posted",{amount:value,allocationMode,allocatedInvoiceId:allocationInvoiceId||null,unappliedAmount:unapplied,allocationSummary});
     }else await logEvent(selected,"transaction.posted",type+" posted",{amount:value,note});
-    setAmount("");setNote("");await load();
+    setAmount("");setNote("");setAllocationMode("auto");setAllocationInvoiceId("");await load();
   }
 
   async function reverseTransaction(t){
@@ -169,7 +224,7 @@ export default function Billing({staff,initialPolicyId}){
       <div className="billing-account-hero"><div><span>Open balance</span><strong>{money(invoiceBalance(selected))}</strong></div><div><span>Ledger balance</span><strong>{money(ledgerBalance(selected))}</strong></div><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Status</span><strong>{(selected.billingStatus||"current").replaceAll("_"," ")}</strong></div></div>
       <div className="record-tabs">{[["overview","Overview"],["invoices","Invoices"],["ledger","Ledger"],["plan","Payment plan"],["delinquency","Delinquency"],["history","History"]].map(([k,l])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k)}>{l}</button>)}</div>
 
-      {tab==="overview"&&<div className="billing-overview-grid"><article className="panel"><div className="eyebrow">ACCOUNT HEALTH</div><h3>{overdue(selected).length?"Past due":"Account current"}</h3><p>{overdue(selected).length?overdue(selected).length+" invoice(s) are beyond their due date.":"No overdue invoices detected."}</p>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="billing-form" onSubmit={postTransaction}><div className="three-col"><label>Transaction<select value={type} onChange={e=>setType(e.target.value)}><option value="payment">Payment</option><option value="charge">Charge</option><option value="credit">Credit</option><option value="refund">Refund</option><option value="returned_payment">Returned payment / NSF</option><option value="write_off">Write-off</option><option value="adjustment">Manual adjustment</option></select></label><label>Amount<input type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></label><label>Note<input value={note} onChange={e=>setNote(e.target.value)}/></label></div><button className="primary compact">Post transaction</button></form>}</article><article className="panel"><div className="eyebrow">ACTIVE PLAN</div>{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").length?<div className="payment-plan-preview">{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").map(p=><div key={p.id}><strong>{money(p.totalAmount)}</strong><span>{p.installmentCount} installments • {money(p.installmentAmount)} each</span></div>)}</div>:<div className="queue-empty"><RefreshCw size={26}/><h3>No payment plan.</h3></div>}</article></div>}
+      {tab==="overview"&&<div className="billing-overview-grid"><article className="panel"><div className="eyebrow">ACCOUNT HEALTH</div><h3>{overdue(selected).length?"Past due":"Account current"}</h3><p>{overdue(selected).length?overdue(selected).length+" invoice(s) are beyond their due date.":"No overdue invoices detected."}</p>{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="billing-form" onSubmit={postTransaction}><div className="three-col"><label>Transaction<select value={type} onChange={e=>{setType(e.target.value);if(e.target.value!=="payment"){setAllocationMode("auto");setAllocationInvoiceId("")}}}><option value="payment">Payment</option><option value="charge">Charge</option><option value="credit">Credit</option><option value="refund">Refund</option><option value="returned_payment">Returned payment / NSF</option><option value="write_off">Write-off</option><option value="adjustment">Manual adjustment</option></select></label><label>Amount<input type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></label><label>Note<input value={note} onChange={e=>setNote(e.target.value)}/></label></div>{type==="payment"&&<div className="payment-allocation-box"><div className="eyebrow">PAYMENT ALLOCATION</div><h4>Where should this payment go?</h4><div className="allocation-options"><label className={allocationMode==="auto"?"active":""}><input type="radio" name="allocation" checked={allocationMode==="auto"} onChange={()=>{setAllocationMode("auto");setAllocationInvoiceId("")}}/><span><strong>Auto-allocate</strong><small>Oldest open invoices first</small></span></label><label className={allocationMode==="specific"?"active":""}><input type="radio" name="allocation" checked={allocationMode==="specific"} onChange={()=>setAllocationMode("specific")}/><span><strong>Specific invoice</strong><small>Apply early or direct payment to one invoice</small></span></label><label className={allocationMode==="unapplied"?"active":""}><input type="radio" name="allocation" checked={allocationMode==="unapplied"} onChange={()=>{setAllocationMode("unapplied");setAllocationInvoiceId("")}}/><span><strong>Unapplied credit</strong><small>Hold for a future invoice</small></span></label></div>{allocationMode==="specific"&&<label>Invoice<select value={allocationInvoiceId} onChange={e=>setAllocationInvoiceId(e.target.value)} required><option value="">Choose an open invoice…</option>{(invoiceByPolicy[selected.id]||[]).filter(i=>!["paid","void"].includes(i.status)).map(i=><option key={i.id} value={i.id}>{i.invoiceNumber||"Invoice"} — {i.description} — {money(i.balanceDue??i.amount)} due {i.dueDate}</option>)}</select></label>}{allocationMode==="specific"&&allocationInvoiceId&&(()=>{const inv=(invoiceByPolicy[selected.id]||[]).find(i=>i.id===allocationInvoiceId);const pay=Number(amount||0),due=Number(inv?.balanceDue??inv?.amount??0),applied=Math.min(pay,due),left=Math.max(0,pay-due);return <div className="allocation-preview"><div><span>Applied to invoice</span><strong>{money(applied)}</strong></div><div><span>Remaining invoice balance</span><strong>{money(Math.max(0,due-pay))}</strong></div><div><span>Unapplied remainder</span><strong>{money(left)}</strong></div></div>})()}</div>}<button className="primary compact">Post transaction</button></form>}</article><article className="panel"><div className="eyebrow">ACTIVE PLAN</div>{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").length?<div className="payment-plan-preview">{(planByPolicy[selected.id]||[]).filter(p=>p.status==="active").map(p=><div key={p.id}><strong>{money(p.totalAmount)}</strong><span>{p.installmentCount} installments • {money(p.installmentAmount)} each</span></div>)}</div>:<div className="queue-empty"><RefreshCw size={26}/><h3>No payment plan.</h3></div>}</article></div>}
 
       {tab==="invoices"&&<div className="billing-tab-grid"><form className="panel invoice-form" onSubmit={createInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create premium invoice</h3><label>Description<input value={invoiceForm.description} onChange={e=>setInvoiceForm({...invoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0" step="0.01" value={invoiceForm.amount} onChange={e=>setInvoiceForm({...invoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm({...invoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form><div className="table-card"><div className="table-toolbar"><strong>Invoices</strong><button className="secondary compact" type="button" onClick={generateStatement}>Generate statement</button><span>{(invoiceByPolicy[selected.id]||[]).length}</span></div><div className="invoice-list">{(invoiceByPolicy[selected.id]||[]).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description}</strong><span>Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div></div></div>}
 
