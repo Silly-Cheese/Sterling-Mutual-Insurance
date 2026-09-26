@@ -7,10 +7,11 @@ import {can,PERMISSIONS} from "../permissions";
 const empty={firstName:"",lastName:"",phone:"",email:"",reason:"new_quote",productInterest:"auto",priority:"normal",notes:""};
 
 export default function WalkIns({staff,onNavigate,openNew}){
-  const [walkIns,setWalkIns]=useState([]),[open,setOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState(empty);
+  const [walkIns,setWalkIns]=useState([]),[staffList,setStaffList]=useState([]),[open,setOpen]=useState(false),[saving,setSaving]=useState(false),[form,setForm]=useState(empty);
   async function load(){
-    const snap=await getDocs(collection(db,"walkIns"));
+    const [snap,staffSnap]=await Promise.all([getDocs(collection(db,"walkIns")),getDocs(collection(db,"staff")).catch(()=>({docs:[]}))]);
     setWalkIns(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.checkedInAt?.seconds||0)-(a.checkedInAt?.seconds||0)));
+    setStaffList(staffSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.status==="active"));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
   useEffect(()=>{if(openNew)setOpen(true)},[openNew]);
@@ -35,11 +36,12 @@ export default function WalkIns({staff,onNavigate,openNew}){
     }finally{setSaving(false)}
   }
 
-  async function claim(w){
+  async function claim(w,assigneeId=staff.id){
+    const assignee=staffList.find(s=>s.id===assigneeId)||staff;
     await updateDoc(doc(db,"walkIns",w.id),{
       status:"in_service",
-      assignedTo:staff.id,
-      assignedName:staff.displayName,
+      assignedTo:assignee.id,
+      assignedName:assignee.displayName,
       serviceStartedAt:serverTimestamp()
     });
     await load();
@@ -100,7 +102,7 @@ export default function WalkIns({staff,onNavigate,openNew}){
       <div><span className="frontdesk-number">{waiting.length}</span><span>Waiting</span></div>
       <div><span className="frontdesk-number">{active.length}</span><span>Being helped</span></div>
       <div><span className="frontdesk-number">{myActive.length}</span><span>Assigned to me</span></div>
-      <div><span className="frontdesk-number">{walkIns.filter(w=>w.status==="converted").length}</span><span>Converted</span></div>
+      <div><span className="frontdesk-number">{staffList.filter(s=>s.availability==="available").length}</span><span>Staff available</span></div>
     </div>
 
     <div className="walkin-board">
@@ -110,7 +112,7 @@ export default function WalkIns({staff,onNavigate,openNew}){
         <div className="walkin-list">{waiting.map(w=><div className={"walkin-card "+(w.priority==="urgent"?"urgent":"")} key={w.id}>
           <div className="walkin-avatar">{(w.firstName?.[0]||"")+(w.lastName?.[0]||"")}</div>
           <div className="walkin-main"><strong>{w.displayName}</strong><span>{reasonLabel(w.reason)} • {w.productInterest?.toUpperCase()}</span><small><Clock3 size={12}/> {elapsed(w.checkedInAt)}{w.phone?" • "+w.phone:""}</small></div>
-          {can(staff,PERMISSIONS.WALKIN_MANAGE)&&<button className="primary compact" onClick={()=>claim(w)}><UserCheck size={15}/> Help</button>}
+          {can(staff,PERMISSIONS.WALKIN_MANAGE)&&<div className="walkin-assign"><select defaultValue="" onChange={e=>{if(e.target.value)claim(w,e.target.value)}}><option value="">Assign…</option>{staffList.filter(s=>s.availability==="available"||s.id===staff.id).map(s=><option key={s.id} value={s.id}>{s.displayName}{s.id===staff.id?" (me)":""}</option>)}</select><button className="primary compact" onClick={()=>claim(w)}><UserCheck size={15}/> Help myself</button></div>}
         </div>)}</div>}
       </article>
 
