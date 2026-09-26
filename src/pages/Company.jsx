@@ -179,7 +179,7 @@ function Approvals({approvals,staff,reload,logAdmin,onNavigate}){
         await addDoc(collection(db,"claimEvents"),{claimId:a.recordId,type:"settlement.approved",summary:"Management approved settlement",details:{amount:Number(a.requestedAmount||0)},actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
       }
       if(a.actionType==="large_reserve"){
-        await updateDoc(doc(db,"claims",a.recordId),{reserveAmount:Number(a.requestedAmount||0),reserveApprovedBy:staff.id,reserveApprovedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+        await updateDoc(doc(db,"claims",a.recordId),{reserveAmount:Number(a.requestedAmount||0),reserveCategories:a.requestedReserveCategories||{},reserveApprovalStatus:"approved",proposedReserveAmount:null,proposedReserveCategories:null,reserveApprovedBy:staff.id,reserveApprovedAt:serverTimestamp(),stage:"evaluation",updatedAt:serverTimestamp()});
         await addDoc(collection(db,"claimEvents"),{claimId:a.recordId,type:"reserve.approved",summary:"Management approved claim reserve",details:{amount:Number(a.requestedAmount||0)},actorUid:staff.id,actorName:staff.displayName,createdAt:serverTimestamp()});
       }
       if(a.actionType==="siu_adverse_finding"){
@@ -193,6 +193,7 @@ function Approvals({approvals,staff,reload,logAdmin,onNavigate}){
         if(p)await addDoc(collection(db,"billingTransactions"),{policyId:p.id,policyNumber:p.policyNumber,customerId:p.customerId,customerName:p.customerName,type:"refund",amount:Number(a.requestedAmount||0),note:"Management-approved refund",status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
       }
     }
+    if(status==="denied"&&a.actionType==="large_reserve"&&a.recordId)await updateDoc(doc(db,"claims",a.recordId),{reserveApprovalStatus:"denied",proposedReserveAmount:null,proposedReserveCategories:null,updatedAt:serverTimestamp()});
     await updateDoc(doc(db,"approvals",a.id),{status,decidedBy:staff.id,decidedByName:staff.displayName,decidedAt:serverTimestamp()});
     await logAdmin("Approval "+status,{approvalId:a.id,actionType:a.actionType});await reload();
   }
