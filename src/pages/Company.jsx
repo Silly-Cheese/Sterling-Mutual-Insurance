@@ -6,7 +6,7 @@ import {can,PERMISSIONS,PERMISSION_GROUPS,ROLE_PRESETS,effectivePermissions} fro
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 
-export default function Company({staff}){
+export default function Company({staff,onNavigate}){
   const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[accounts,setAccounts]=useState([]),[audit,setAudit]=useState([]),[approvals,setApprovals]=useState([]),[archives,setArchives]=useState([]),[tab,setTab]=useState("finance");
 
   async function safeDocs(name){
@@ -54,7 +54,7 @@ export default function Company({staff}){
     {tab==="finance"&&<Finance metrics={metrics}/>}
     {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx} staffList={staffList}/>}
     {tab==="staff"&&<Staff staffList={staffList} accounts={accounts} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} canPermissions={can(staff,PERMISSIONS.STAFF_PERMISSION_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
-    {tab==="approvals"&&<Approvals approvals={approvals} staff={staff} reload={load} logAdmin={logAdmin}/>}
+    {tab==="approvals"&&<Approvals approvals={approvals} staff={staff} reload={load} logAdmin={logAdmin} onNavigate={onNavigate}/>}
     {tab==="archives"&&<Archives archives={archives}/>}
     {tab==="audit"&&<Audit audit={audit}/>}
     {tab==="documents"&&<Documents policies={policies}/>}
@@ -171,7 +171,7 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
   </div>
 }
 
-function Approvals({approvals,staff,reload,logAdmin}){
+function Approvals({approvals,staff,reload,logAdmin,onNavigate}){
   async function decide(a,status){
     if(status==="approved"){
       if(a.actionType==="claim_settlement"){
@@ -193,7 +193,7 @@ function Approvals({approvals,staff,reload,logAdmin}){
     await logAdmin("Approval "+status,{approvalId:a.id,actionType:a.actionType});await reload();
   }
   const pending=approvals.filter(a=>a.status==="pending");
-  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span>{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<div><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></div>}</div>)}</div>}</div></div>
+  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.actionType?.includes("claim")||a.actionType==="large_reserve"?<button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:a.customerId})}>Open claim</button>:a.actionType==="large_refund"?<button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:a.recordId})}>Open billing</button>:null}{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></>}</div></div>)}</div>}</div></div>
 }
 
 function Archives({archives,staff,reload,logAdmin}){
