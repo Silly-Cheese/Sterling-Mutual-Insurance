@@ -12,7 +12,7 @@ const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().s
 export default function Billing({staff,initialPolicyId}){
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[customerTab,setCustomerTab]=useState("overview"),[tab,setTab]=useState("overview");
   const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState(""),[allocationMode,setAllocationMode]=useState("auto"),[allocationInvoiceId,setAllocationInvoiceId]=useState("");
-  const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"});
+  const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"}),[customerInvoiceForm,setCustomerInvoiceForm]=useState({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
   const [planForm,setPlanForm]=useState({totalAmount:"",installments:"3",firstDueDate:""}),[editingPlan,setEditingPlan]=useState(null);
   const [delinq,setDelinq]=useState({stage:"current",graceEnds:"",reason:"Nonpayment of premium"});
 
@@ -160,6 +160,44 @@ export default function Billing({staff,initialPolicyId}){
     setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
   }
 
+  async function createCustomerInvoice(e){
+    e.preventDefault();if(!selectedCustomer)return;
+    const policy=selectedCustomer.policies.find(p=>p.id===customerInvoiceForm.policyId);
+    if(!policy)return;
+    const value=Number(customerInvoiceForm.amount||0);
+    await addDoc(collection(db,"billingInvoices"),{
+      invoiceNumber:invoiceNo(),
+      policyId:policy.id,
+      policyNumber:policy.policyNumber,
+      customerId:selectedCustomer.customerId,
+      customerName:selectedCustomer.customerName,
+      description:customerInvoiceForm.description,
+      amount:value,
+      balanceDue:value,
+      dueDate:customerInvoiceForm.dueDate,
+      status:"open",
+      createdBy:staff.id,
+      createdByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+    await addDoc(collection(db,"billingTransactions"),{
+      policyId:policy.id,
+      policyNumber:policy.policyNumber,
+      customerId:selectedCustomer.customerId,
+      customerName:selectedCustomer.customerName,
+      type:"charge",
+      amount:value,
+      note:customerInvoiceForm.description,
+      status:"posted",
+      createdBy:staff.id,
+      createdByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+    await logEvent(policy,"invoice.created","Invoice created from customer billing account",{amount:value,dueDate:customerInvoiceForm.dueDate});
+    setCustomerInvoiceForm({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
+    await load();
+  }
+
   async function generateStatement(){
     if(!selected)return;
     const open=(invoiceByPolicy[selected.id]||[]).filter(i=>!["paid","void"].includes(i.status));
@@ -276,7 +314,7 @@ export default function Billing({staff,initialPolicyId}){
 
       {customerTab==="overview"&&<div className="billing-overview-grid"><article className="panel"><div className="eyebrow">ACCOUNT SUMMARY</div><h3>{selectedCustomer.pastDue>0?"Past-due balance requires attention":"Account current"}</h3><p>{selectedCustomer.policies.length} policy account{selectedCustomer.policies.length===1?"":"s"} • {money(selectedCustomer.openBalance)} total open balance.</p></article><article className="panel"><div className="eyebrow">RECENT PAYMENT</div>{tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment").length?<><h3>{money(tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment")[0]?.amount)}</h3><p>{tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment")[0]?.policyNumber} • {tx.filter(t=>t.customerId===selectedCustomer.customerId&&t.type==="payment")[0]?.note||"Payment posted"}</p></>:<div className="queue-empty"><ReceiptText size={26}/><h3>No payments posted.</h3></div>}</article></div>}
 
-      {customerTab==="invoices"&&<div className="table-card"><div className="table-toolbar"><strong>All invoices</strong><span>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length}</span></div>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No invoices have been created for this customer.</div>:<div className="invoice-list">{invoices.filter(i=>i.customerId===selectedCustomer.customerId).sort((a,b)=>String(b.dueDate).localeCompare(String(a.dueDate))).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description||"Premium invoice"}</strong><span>{i.policyNumber} • Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div>}</div>}
+      {customerTab==="invoices"&&<div className="customer-invoice-layout">{can(staff,PERMISSIONS.BILLING_MANAGE)&&<form className="panel customer-invoice-form" onSubmit={createCustomerInvoice}><div className="eyebrow">NEW INVOICE</div><h3>Create invoice</h3><label>Policy<select value={customerInvoiceForm.policyId} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,policyId:e.target.value})} required><option value="">Select policy…</option>{selectedCustomer.policies.map(p=><option key={p.id} value={p.id}>{p.policyNumber} — {p.product?.toUpperCase()}</option>)}</select></label><label>Description<input value={customerInvoiceForm.description} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,description:e.target.value})}/></label><div className="two-col"><label>Amount<input type="number" min="0.01" step="0.01" value={customerInvoiceForm.amount} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,amount:e.target.value})} required/></label><label>Due date<input type="date" value={customerInvoiceForm.dueDate} onChange={e=>setCustomerInvoiceForm({...customerInvoiceForm,dueDate:e.target.value})} required/></label></div><button className="primary">Create invoice</button></form>}<div className="table-card customer-invoice-list"><div className="table-toolbar"><strong>All invoices</strong><span>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length}</span></div>{invoices.filter(i=>i.customerId===selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No invoices have been created for this customer.</div>:<div className="invoice-list">{invoices.filter(i=>i.customerId===selectedCustomer.customerId).sort((a,b)=>String(b.dueDate).localeCompare(String(a.dueDate))).map(i=><div key={i.id} className={i.dueDate<today()&&!["paid","void"].includes(i.status)?"overdue":""}><FileText size={17}/><div><strong>{i.invoiceNumber||"Invoice"} • {i.description||"Premium invoice"}</strong><span>{i.policyNumber} • Due {i.dueDate}</span></div><div><strong>{money(i.balanceDue??i.amount)}</strong><span className={"status-pill "+i.status}>{i.status}</span></div></div>)}</div>}</div></div>}
 
       {customerTab==="payments"&&<div className="table-card billing-history-panel"><div className="table-toolbar"><strong>Payment & transaction history</strong><span>{tx.filter(t=>t.customerId===selectedCustomer.customerId).length}</span></div>{tx.filter(t=>t.customerId===selectedCustomer.customerId).length===0?<div className="empty-state compact-empty">No billing transactions have been posted for this customer.</div>:<div className="customer-payment-history">{tx.filter(t=>t.customerId===selectedCustomer.customerId).map(t=><div key={t.id}><div className="product-icon"><CreditCard size={15}/></div><div><strong>{t.type.replaceAll("_"," ")}</strong><span>{t.policyNumber} • {t.note||"No note"} • {t.createdByName||"Staff"}</span></div><div><strong>{["payment","credit","write_off"].includes(t.type)?"−":"+"}{money(t.amount)}</strong><span className={"status-pill "+(t.status||"posted")}>{t.status||"posted"}</span></div></div>)}</div>}</div>}
 
