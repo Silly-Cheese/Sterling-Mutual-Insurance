@@ -420,3 +420,61 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 .customer-invoice-form{position:sticky;top:50px;align-self:start;min-height:0}
 .customer-invoice-list{min-height:0}
 @media(max-width:840px){.customer-invoice-layout{grid-template-columns:1fr}.customer-invoice-form{position:static}}
+
+
+/* Billing control deck: keep navigation visible above long content */
+.customer-billing-detail,.billing-policy-detail{
+  max-height:90vh;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.billing-control-deck{
+  position:sticky;
+  top:0;
+  z-index:40;
+  background:#fff;
+  padding-bottom:2px;
+  box-shadow:0 8px 18px rgba(18,39,32,.06);
+  flex:0 0 auto;
+}
+.billing-control-deck .modal-head{
+  background:#fff;
+  margin-bottom:10px;
+}
+.billing-control-deck .billing-account-hero{
+  margin-bottom:0;
+}
+.billing-control-deck .billing-sticky-tabs{
+  position:relative;
+  top:auto;
+  z-index:auto;
+  margin:8px 0 0;
+  background:#fff;
+  box-shadow:none;
+  border-bottom:1px solid #dfe5e1;
+  padding:0 2px;
+}
+.customer-billing-detail>.billing-overview-grid,
+.customer-billing-detail>.customer-invoice-layout,
+.customer-billing-detail>.billing-history-panel,
+.customer-billing-detail>.account-policy-list,
+.billing-policy-detail>.billing-overview-grid,
+.billing-policy-detail>.billing-tab-grid,
+.billing-policy-detail>.ledger,
+.billing-policy-detail>.delinquency-workflow,
+.billing-policy-detail>.timeline{
+  overflow-y:auto;
+  min-height:0;
+  flex:1 1 auto;
+  padding-top:14px;
+}
+.customer-invoice-form{
+  position:static;
+}
+.billing-history-panel{
+  max-height:none;
+}
+@media(max-width:840px){
+  .billing-control-deck{position:sticky}
+}
