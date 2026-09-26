@@ -407,3 +407,11 @@ input:focus,select:focus,textarea:focus{border-color:#4d7d70;box-shadow:0 0 0 3p
 .customer-payment-history span{font-size:10px;color:#7d8885;margin-top:3px}
 .customer-payment-history>div>div:last-child{text-align:right}
 @media(max-width:620px){.customer-payment-history>div{grid-template-columns:34px 1fr}.customer-payment-history>div>div:last-child{grid-column:2;text-align:left}}
+
+.billing-sticky-tabs{position:sticky;top:0;z-index:8;background:#fff;padding-top:6px;box-shadow:0 5px 12px rgba(18,39,32,.05)}
+.customer-billing-detail,.billing-policy-detail{max-height:90vh;overflow-y:auto}
+.billing-history-panel{max-height:58vh;overflow:hidden;display:flex;flex-direction:column}
+.customer-payment-history{overflow-y:auto;min-height:0}
+.editable-plan-list>div{grid-template-columns:26px minmax(0,1fr) auto}
+.plan-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:720px){.editable-plan-list>div{grid-template-columns:26px 1fr}.plan-actions{grid-column:2;justify-content:flex-start}}
