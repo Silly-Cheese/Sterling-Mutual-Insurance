@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {collection,doc,getDocs,serverTimestamp,writeBatch,updateDoc} from "firebase/firestore";
-import {Car,FileCheck2,Home,Plus,ShieldCheck,X} from "lucide-react";
+import {ArrowRight,Car,CreditCard,FileCheck2,Home,Plus,ShieldAlert,ShieldCheck,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
 
@@ -8,7 +8,7 @@ function money(v){return new Intl.NumberFormat("en-US",{style:"currency",currenc
 function policyNo(){return "SMI-"+new Date().getFullYear()+"-"+Date.now().toString().slice(-7)}
 function addMonths(date,months){const d=new Date(date);d.setMonth(d.getMonth()+months);return d.toISOString().slice(0,10)}
 
-export default function Policies({staff}){
+export default function Policies({staff,onNavigate,initialCustomerId}){
   const [policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[assets,setAssets]=useState([]),[issuing,setIssuing]=useState(null),[selected,setSelected]=useState(null);
 
   async function load(){
@@ -18,6 +18,7 @@ export default function Policies({staff}){
     setAssets(a.docs.map(d=>({id:d.id,...d.data()})));
   }
   useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{if(initialCustomerId&&policies.length){const match=policies.find(p=>p.customerId===initialCustomerId);if(match)setSelected(match)}},[initialCustomerId,policies]);
 
   const approved=quotes.filter(q=>q.status==="approved");
   const assetMap=useMemo(()=>Object.fromEntries(assets.map(a=>[a.policyId,a])),[assets]);
@@ -68,6 +69,7 @@ export default function Policies({staff}){
   }
 
   return <section className="content">
+    <div className="workflow-ribbon"><span>Intake</span><span>Customer</span><span>Quote</span><span>Underwriting</span><strong>Policy</strong><span>Service</span></div>
     <div className="page-heading"><div><div className="eyebrow">POLICY ADMINISTRATION</div><h1>Policies</h1><p>Issue approved applications and manage active Sterling Mutual coverage.</p></div></div>
 
     {approved.length>0&&can(staff,PERMISSIONS.POLICY_ISSUE)&&<div className="issuance-banner">
@@ -97,6 +99,7 @@ export default function Policies({staff}){
       <div className="modal-head"><div><div className="eyebrow">POLICY RECORD</div><h2>{selected.policyNumber}</h2></div><button onClick={()=>setSelected(null)}><X/></button></div>
       <div className="policy-hero"><div><span>Named insured</span><strong>{selected.customerName}</strong></div><div><span>Status</span><strong>{selected.status.toUpperCase()}</strong></div><div><span>Product</span><strong>{selected.product?.toUpperCase()}</strong></div></div>
       <div className="coverage-grid"><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Term premium</span><strong>{money(selected.termPremium)}</strong></div><div><span>Deductible</span><strong>{money(selected.deductible)}</strong></div><div><span>Liability</span><strong>{money(selected.liabilityLimit)}</strong></div><div><span>Property damage</span><strong>{money(selected.propertyDamageLimit)}</strong></div><div><span>Insured asset</span><strong>{assetMap[selected.id]?.description||"Not listed"}</strong></div></div>
+      <div className="record-handoff"><span>Continue servicing this policy</span><div><button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:selected.id})}><CreditCard size={14}/> Billing</button><button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:selected.customerId})}><ShieldAlert size={14}/> File claim</button><button className="secondary compact" onClick={()=>onNavigate?.("Customers",{customerId:selected.customerId})}>Customer <ArrowRight size={14}/></button></div></div>
       <div className="modal-actions">
         {can(staff,PERMISSIONS.POLICY_UPDATE)&&selected.status==="active"&&<button className="secondary danger-soft" onClick={()=>changeStatus(selected,"cancelled")}>Cancel policy</button>}
         {can(staff,PERMISSIONS.POLICY_UPDATE)&&selected.status==="cancelled"&&<button className="primary" onClick={()=>changeStatus(selected,"active")}>Reinstate policy</button>}
