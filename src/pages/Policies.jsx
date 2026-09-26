@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
-import {collection,doc,getDocs,serverTimestamp,writeBatch,updateDoc} from "firebase/firestore";
-import {ArrowRight,Car,CreditCard,FileCheck2,Home,Plus,ShieldAlert,ShieldCheck,X} from "lucide-react";
+import {collection,doc,getDocs,query,serverTimestamp,where,writeBatch,updateDoc} from "firebase/firestore";
+import {Archive,ArrowRight,Car,CreditCard,FileCheck2,Home,Pencil,Plus,ShieldAlert,ShieldCheck,Trash2,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
 
@@ -9,7 +9,7 @@ function policyNo(){return "SMI-"+new Date().getFullYear()+"-"+Date.now().toStri
 function addMonths(date,months){const d=new Date(date);d.setMonth(d.getMonth()+months);return d.toISOString().slice(0,10)}
 
 export default function Policies({staff,onNavigate,initialCustomerId}){
-  const [policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[assets,setAssets]=useState([]),[issuing,setIssuing]=useState(null),[selected,setSelected]=useState(null);
+  const [policies,setPolicies]=useState([]),[quotes,setQuotes]=useState([]),[assets,setAssets]=useState([]),[issuing,setIssuing]=useState(null),[selected,setSelected]=useState(null),[editing,setEditing]=useState(false),[editForm,setEditForm]=useState(null),[deleteMessage,setDeleteMessage]=useState("");
 
   async function load(){
     const [p,q,a]=await Promise.all([getDocs(collection(db,"policies")),getDocs(collection(db,"quotes")),getDocs(collection(db,"insuredAssets"))]);
@@ -68,6 +68,77 @@ export default function Policies({staff,onNavigate,initialCustomerId}){
     setSelected(null);await load();
   }
 
+  function startEdit(policy){
+    setEditForm({
+      monthlyPremium:String(policy.monthlyPremium??""),
+      termPremium:String(policy.termPremium??""),
+      deductible:String(policy.deductible??""),
+      liabilityLimit:String(policy.liabilityLimit??""),
+      propertyDamageLimit:String(policy.propertyDamageLimit??""),
+      effectiveDate:policy.effectiveDate||"",
+      expirationDate:policy.expirationDate||"",
+      status:policy.status||"active"
+    });
+    setEditing(true);
+    setDeleteMessage("");
+  }
+
+  async function saveEdit(e){
+    e.preventDefault();
+    if(!selected||!editForm)return;
+    const patch={
+      monthlyPremium:Number(editForm.monthlyPremium||0),
+      termPremium:Number(editForm.termPremium||0),
+      deductible:Number(editForm.deductible||0),
+      liabilityLimit:Number(editForm.liabilityLimit||0),
+      propertyDamageLimit:Number(editForm.propertyDamageLimit||0),
+      effectiveDate:editForm.effectiveDate,
+      expirationDate:editForm.expirationDate,
+      status:editForm.status,
+      updatedAt:serverTimestamp(),
+      updatedBy:staff.id
+    };
+    await updateDoc(doc(db,"policies",selected.id),patch);
+    setSelected({...selected,...patch});
+    setEditing(false);
+    await load();
+  }
+
+  async function archivePolicy(policy){
+    await updateDoc(doc(db,"policies",policy.id),{
+      status:"archived",
+      archivedAt:serverTimestamp(),
+      archivedBy:staff.id,
+      updatedAt:serverTimestamp()
+    });
+    setSelected(null);
+    await load();
+  }
+
+  async function permanentlyDelete(policy){
+    setDeleteMessage("");
+    if(policy.status==="active"){
+      setDeleteMessage("Active policies must be cancelled or archived before permanent deletion.");
+      return;
+    }
+    const [claimsSnap,billingSnap,assetsSnap]=await Promise.all([
+      getDocs(query(collection(db,"claims"),where("policyId","==",policy.id))),
+      getDocs(query(collection(db,"billingTransactions"),where("policyId","==",policy.id))),
+      getDocs(query(collection(db,"insuredAssets"),where("policyId","==",policy.id)))
+    ]);
+    if(!claimsSnap.empty||!billingSnap.empty){
+      setDeleteMessage("This policy has claim or billing history and cannot be permanently deleted. Archive it instead.");
+      return;
+    }
+    if(!window.confirm("Permanently delete "+policy.policyNumber+"? This cannot be undone."))return;
+    const batch=writeBatch(db);
+    assetsSnap.docs.forEach(d=>batch.delete(d.ref));
+    batch.delete(doc(db,"policies",policy.id));
+    await batch.commit();
+    setSelected(null);
+    await load();
+  }
+
   return <section className="content">
     <div className="workflow-ribbon"><span>Intake</span><span>Customer</span><span>Quote</span><span>Underwriting</span><strong>Policy</strong><span>Service</span></div>
     <div className="page-heading"><div><div className="eyebrow">POLICY ADMINISTRATION</div><h1>Policies</h1><p>Issue approved applications and manage active Sterling Mutual coverage.</p></div></div>
@@ -99,12 +170,15 @@ export default function Policies({staff,onNavigate,initialCustomerId}){
       <div className="modal-head"><div><div className="eyebrow">POLICY RECORD</div><h2>{selected.policyNumber}</h2></div><button onClick={()=>setSelected(null)}><X/></button></div>
       <div className="policy-hero"><div><span>Named insured</span><strong>{selected.customerName}</strong></div><div><span>Status</span><strong>{selected.status.toUpperCase()}</strong></div><div><span>Product</span><strong>{selected.product?.toUpperCase()}</strong></div></div>
       <div className="coverage-grid"><div><span>Monthly premium</span><strong>{money(selected.monthlyPremium)}</strong></div><div><span>Term premium</span><strong>{money(selected.termPremium)}</strong></div><div><span>Deductible</span><strong>{money(selected.deductible)}</strong></div><div><span>Liability</span><strong>{money(selected.liabilityLimit)}</strong></div><div><span>Property damage</span><strong>{money(selected.propertyDamageLimit)}</strong></div><div><span>Insured asset</span><strong>{assetMap[selected.id]?.description||"Not listed"}</strong></div></div>
-      <div className="record-handoff"><span>Continue servicing this policy</span><div><button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:selected.id})}><CreditCard size={14}/> Billing</button><button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:selected.customerId})}><ShieldAlert size={14}/> File claim</button><button className="secondary compact" onClick={()=>onNavigate?.("Customers",{customerId:selected.customerId})}>Customer <ArrowRight size={14}/></button></div></div>
-      <div className="modal-actions">
+      {deleteMessage&&<div className="error-box">{deleteMessage}</div>}<div className="record-handoff"><span>Continue servicing this policy</span><div><button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:selected.id})}><CreditCard size={14}/> Billing</button><button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:selected.customerId})}><ShieldAlert size={14}/> File claim</button><button className="secondary compact" onClick={()=>onNavigate?.("Customers",{customerId:selected.customerId})}>Customer <ArrowRight size={14}/></button></div></div>
+      <div className="modal-actions policy-admin-actions">
+        {can(staff,PERMISSIONS.POLICY_UPDATE)&&<button className="secondary" onClick={()=>startEdit(selected)}><Pencil size={15}/> Edit policy</button>}
+        {can(staff,PERMISSIONS.POLICY_UPDATE)&&selected.status!=="archived"&&<button className="secondary" onClick={()=>archivePolicy(selected)}><Archive size={15}/> Archive</button>}
+        {can(staff,PERMISSIONS.POLICY_DELETE)&&<button className="secondary danger-soft" onClick={()=>permanentlyDelete(selected)}><Trash2 size={15}/> Delete permanently</button>}
         {can(staff,PERMISSIONS.POLICY_UPDATE)&&selected.status==="active"&&<button className="secondary danger-soft" onClick={()=>changeStatus(selected,"cancelled")}>Cancel policy</button>}
         {can(staff,PERMISSIONS.POLICY_UPDATE)&&selected.status==="cancelled"&&<button className="primary" onClick={()=>changeStatus(selected,"active")}>Reinstate policy</button>}
         <button className="secondary" onClick={()=>setSelected(null)}>Close</button>
       </div>
-    </div></div>}
+    </div></div>}{editing&&selected&&editForm&&<div className="modal-backdrop"><form className="modal wide" onSubmit={saveEdit}><div className="modal-head"><div><div className="eyebrow">POLICY ADMINISTRATION</div><h2>Edit {selected.policyNumber}</h2></div><button type="button" onClick={()=>setEditing(false)}><X/></button></div><div className="three-col"><label>Monthly premium<input type="number" min="0" step="0.01" value={editForm.monthlyPremium} onChange={e=>setEditForm({...editForm,monthlyPremium:e.target.value})}/></label><label>Term premium<input type="number" min="0" step="0.01" value={editForm.termPremium} onChange={e=>setEditForm({...editForm,termPremium:e.target.value})}/></label><label>Status<select value={editForm.status} onChange={e=>setEditForm({...editForm,status:e.target.value})}><option value="active">Active</option><option value="cancelled">Cancelled</option><option value="archived">Archived</option></select></label></div><div className="three-col"><label>Deductible<input type="number" min="0" value={editForm.deductible} onChange={e=>setEditForm({...editForm,deductible:e.target.value})}/></label><label>Liability limit<input type="number" min="0" value={editForm.liabilityLimit} onChange={e=>setEditForm({...editForm,liabilityLimit:e.target.value})}/></label><label>Property damage limit<input type="number" min="0" value={editForm.propertyDamageLimit} onChange={e=>setEditForm({...editForm,propertyDamageLimit:e.target.value})}/></label></div><div className="two-col"><label>Effective date<input type="date" value={editForm.effectiveDate} onChange={e=>setEditForm({...editForm,effectiveDate:e.target.value})}/></label><label>Expiration date<input type="date" value={editForm.expirationDate} onChange={e=>setEditForm({...editForm,expirationDate:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setEditing(false)}>Cancel</button><button className="primary">Save policy changes</button></div></form></div>}
   </section>
 }
