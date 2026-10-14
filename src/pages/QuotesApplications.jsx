@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc,writeBatch} from "firebase/firestore";
 import {ArrowRight,Car,CheckCircle2,ClipboardList,GitCompare,Home,Plus,ShieldCheck,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
@@ -9,14 +9,17 @@ const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",ma
 const quoteNo=()=> "Q-"+Date.now().toString().slice(-8);
 
 export default function QuotesApplications({staff,initialCustomerId,openNew}){
+  const [search,setSearch]=useState(""),[statusFilter,setStatusFilter]=useState("all"),[error,setError]=useState("");
   const [quotes,setQuotes]=useState([]),[customers,setCustomers]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState(initial),[saving,setSaving]=useState(false),[selected,setSelected]=useState(null),[compareIds,setCompareIds]=useState([]);
 
   async function load(){
-    const [qSnap,cSnap]=await Promise.all([getDocs(collection(db,"quotes")),getDocs(collection(db,"customers"))]);
-    setQuotes(qSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
-    setCustomers(cSnap.docs.map(d=>({id:d.id,...d.data()})));
+    const [qSnap,cSnap]=await Promise.allSettled([getDocs(collection(db,"quotes")),getDocs(collection(db,"customers"))]);
+    if(qSnap.status==="rejected")throw qSnap.reason;
+    if(cSnap.status==="rejected"){setError("Customer directory unavailable: "+cSnap.reason.message);}
+    setQuotes(qSnap.value.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
+    setCustomers(cSnap.status==="fulfilled"?cSnap.value.docs.map(d=>({id:d.id,...d.data()})):[]);
   }
-  useEffect(()=>{load().catch(()=>{})},[]);
+  useEffect(()=>{load().catch(e=>setError("Unable to load quotes: "+(e.message||"Permission error")))},[]);
   useEffect(()=>{if(initialCustomerId){setForm(v=>({...v,customerId:initialCustomerId}));setOpen(true)}else if(openNew)setOpen(true)},[initialCustomerId,openNew]);
   const customerMap=useMemo(()=>Object.fromEntries(customers.map(c=>[c.id,c])),[customers]);
 
@@ -31,10 +34,13 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
     e.preventDefault();setSaving(true);
     try{
       const customer=customerMap[form.customerId],premium=calculatedPremium(form);
-      await addDoc(collection(db,"quotes"),{...form,quoteNumber:quoteNo(),customerName:customer?.displayName||"Unknown customer",monthlyPremium:premium,sixMonthPremium:premium*6,status:"draft",underwritingLevel:"unreviewed",applicationChecklist:{customerInfo:true,assetInfo:Boolean(form.assetDescription),lossHistory:false,documents:false,paymentSelection:false},createdBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-      await updateDoc(doc(db,"customers",form.customerId),{status:"quoted",updatedAt:serverTimestamp(),updatedBy:staff.id});
+      if(!customer)throw new Error("Select a valid customer before creating a quote.");
+      const batch=writeBatch(db);
+      batch.set(doc(collection(db,"quotes")),{...form,quoteNumber:quoteNo(),customerName:customer?.displayName||"Unknown customer",monthlyPremium:premium,sixMonthPremium:premium*6,status:"draft",underwritingLevel:"unreviewed",applicationChecklist:{customerInfo:true,assetInfo:Boolean(form.assetDescription),lossHistory:false,documents:false,paymentSelection:false},createdBy:staff.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      batch.update(doc(db,"customers",form.customerId),{status:"quoted",updatedAt:serverTimestamp(),updatedBy:staff.id});
+      await batch.commit();
       setForm(initial);setOpen(false);await load();
-    }finally{setSaving(false)}
+    }catch(e){setError("Quote was not created: "+(e?.message||"Unknown error"));}finally{setSaving(false)}
   }
 
   async function setStatus(q,status,extra={}){
@@ -50,6 +56,7 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
   async function toggleChecklist(q,key){await updateDoc(doc(db,"quotes",q.id),{["applicationChecklist."+key]:!q.applicationChecklist?.[key],updatedAt:serverTimestamp()});await load()}
   function toggleCompare(id){setCompareIds(v=>v.includes(id)?v.filter(x=>x!==id):v.length<3?[...v,id]:v)}
   const compare=quotes.filter(q=>compareIds.includes(q.id));
+  const visibleQuotes=quotes.filter(q=>(statusFilter==="all"||q.status===statusFilter)&&[q.customerName,q.quoteNumber,q.assetDescription,q.product,q.coverageTier].some(v=>String(v||"").toLowerCase().includes(search.trim().toLowerCase())));
 
   return <section className="content">
     <div className="workflow-ribbon"><span>Intake</span><span>Customer</span><strong>Quote</strong><span>Underwriting</span><span>Policy</span><span>Service</span></div>
@@ -59,7 +66,9 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
 
     {compare.length>1&&<div className="comparison-card"><div className="table-toolbar"><strong><GitCompare size={15}/> Coverage comparison</strong><button className="secondary compact" onClick={()=>setCompareIds([])}>Clear</button></div><div className="comparison-grid">{compare.map(q=><div key={q.id}><span className="status-pill">{q.coverageTier||"standard"}</span><h3>{q.customerName}</h3><strong>{money(q.monthlyPremium)}/mo</strong><p>{money(q.deductible)} deductible</p><small>Liability {money(q.liabilityLimit)} • Property {money(q.propertyDamageLimit)}</small></div>)}</div></div>}
 
-    <div className="table-card workflow-table"><div className="table-toolbar"><strong>Application pipeline</strong><span>{quotes.length} total</span></div>{quotes.length===0?<div className="empty-state"><ClipboardList size={30}/><h3>No quotes yet.</h3></div>:<div className="quote-list">{quotes.map(q=><article className="quote-row" key={q.id}>
+    {error&&<div className="billing-inline-error" role="alert"><strong>Quotes error</strong><span>{error}</span><button type="button" onClick={()=>setError("")}>Dismiss</button></div>}
+    <div className="quotes-help"><strong>Quote workflow</strong><span>1. Create a draft → 2. Complete the application checklist → 3. Submit for underwriting → 4. Review the decision → 5. Issue an approved policy.</span></div>
+    <div className="table-card workflow-table"><div className="table-toolbar quotes-toolbar"><div><strong>Application pipeline</strong><span>{visibleQuotes.length} of {quotes.length} quotes</span></div><div className="quotes-filters"><label>Search quotes<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Customer, quote # or asset"/></label><label>Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option>{["draft","submitted","needs_information","approved","conditional_approval","declined","issued"].map(s=><option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}</select></label></div></div>{visibleQuotes.length===0?<div className="empty-state"><ClipboardList size={30}/><h3>No quotes yet.</h3></div>:<div className="quote-list">{visibleQuotes.map(q=><article className="quote-row" key={q.id}>
       <div className="compare-check"><input type="checkbox" checked={compareIds.includes(q.id)} onChange={()=>toggleCompare(q.id)} title="Compare"/></div>
       <div className="product-icon">{q.product==="home"?<Home size={18}/>:<Car size={18}/>}</div>
       <button className="quote-main quote-open" onClick={()=>setSelected(q)}><strong>{q.customerName}</strong><span>{q.quoteNumber} • {(q.coverageTier||"standard").toUpperCase()} • {q.assetDescription||"Asset not described"}</span></button>
