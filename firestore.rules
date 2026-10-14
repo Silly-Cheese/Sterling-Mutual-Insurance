@@ -413,6 +413,80 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Phase 1 opt-in financial posting subsystem. Immutable operation and journal records.
+    // For real payment processing, enforce balanced postings on a trusted backend.
+    match /financialInvoices/{id} {
+      allow read: if (hasPermission("billing.read") || hasPermission("finance.read"));
+      allow create, update: if hasPermission("billing.manage");
+      allow delete: if false;
+    }
+    match /financialJournals/{id} {
+      allow read: if (hasPermission("billing.read") || hasPermission("finance.read"));
+      allow create: if hasPermission("billing.manage")
+        && request.resource.data.operationId == id
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.status == "posted";
+      allow update, delete: if false;
+    }
+    match /financialOperations/{id} {
+      allow read: if (hasPermission("billing.read") || hasPermission("finance.read"));
+      allow create: if hasPermission("billing.manage")
+        && request.resource.data.operationId == id
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+    match /financialCustomerCredits/{id} {
+      allow read: if (hasPermission("billing.read") || hasPermission("finance.read"));
+      allow create, update: if hasPermission("billing.manage") && request.resource.data.customerId == id
+        && request.resource.data.availableCents is int
+        && request.resource.data.availableCents >= 0;
+      allow delete: if false;
+    }
+    match /financialReversals/{id} {
+      allow read: if (hasPermission("billing.read") || hasPermission("finance.read"));
+      allow create: if hasPermission("billing.manage");
+      allow update, delete: if false;
+    }
+
+
+    // Workflow requests are staff-authored, immutable except for terminal review decisions.
+    match /workflowApprovals/{id} {
+      allow read: if hasPermission("approval.read") || hasPermission("approval.manage");
+      allow create: if isActiveStaff()
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.kind is string
+        && request.resource.data.recordId is string
+        && request.resource.data.summary is string
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents >= 0;
+      allow update: if (hasPermission("approval.manage"))
+        && resource.data.status == "pending"
+        && request.resource.data.status in ["approved", "rejected"]
+        && request.resource.data.resolvedBy == request.auth.uid
+        && resource.data.requestedBy != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status","resolvedBy","reason","resolvedAt","updatedAt"
+        ]);
+      allow delete: if false;
+    }
+    match /workflowTasks/{id} {
+      allow read: if hasPermission("approval.read") || hasPermission("approval.manage");
+      allow create: if isActiveStaff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == "open"
+        && request.resource.data.approvalId == id;
+      allow update: if (hasPermission("approval.manage"))
+        && resource.data.status == "open"
+        && request.resource.data.status == "completed"
+        && request.resource.data.completedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status","completionResult","completedBy","completedAt","updatedAt"
+        ]);
+      allow delete: if false;
+    }
+
+
     match /{document=**} { allow read, write: if false; }
   }
 }
