@@ -2,6 +2,7 @@ import {useEffect,useMemo,useState} from "react";
 import {addDoc,collection,doc,getDocs,serverTimestamp,setDoc,updateDoc} from "firebase/firestore";
 import {Activity,Archive,BarChart3,Building2,CheckCircle2,FileText,KeyRound,Landmark,ShieldCheck,Users,X} from "lucide-react";
 import {db} from "../firebase";
+import {summarizeMutual,auditCoverage} from "../reports/metrics";
 import {can,PERMISSIONS,PERMISSION_GROUPS,ROLE_PRESETS,effectivePermissions} from "../permissions";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
@@ -34,11 +35,19 @@ export default function Company({staff,onNavigate}){
     return {written,collected,refunds,paidClaims,reserves,earned,available,lossRatio};
   },[policies,claims,tx]);
 
+  const phase5=useMemo(()=>summarizeMutual({policies,claims,billingTransactions:tx,billingInvoices:invoices,staff:staffList}),[policies,claims,tx,invoices,staffList]);
+  const auditQuality=useMemo(()=>auditCoverage({audit,staff:staffList}),[audit,staffList]);
+
   async function logAdmin(summary,details={}){
     try{await addDoc(collection(db,"auditLogs"),{eventType:"admin.manual",summary,details,actorUid:staff.id,actorDisplayName:staff.displayName,createdAt:serverTimestamp()})}catch{}
   }
 
   return <section className="content">
+    <div className="metric-grid">
+      <div className="metric-card"><div className="metric-label">Open invoice balances (RP)</div><div className="metric-value">{money(phase5.openInvoiceBalance)}</div></div>
+      <div className="metric-card"><div className="metric-label">Active staff</div><div className="metric-value">{phase5.activeStaff}</div></div>
+      <div className="metric-card"><div className="metric-label">Audit entries missing actor</div><div className="metric-value">{auditQuality.missingActor}</div></div>
+    </div>
     <div className="page-heading"><div><div className="eyebrow">ENTERPRISE OPERATIONS</div><h1>Company</h1><p>Leadership, approvals, staff access, financial condition, archives, and audit oversight.</p></div></div>
 
     <div className="company-tabs">
