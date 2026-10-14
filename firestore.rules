@@ -337,7 +337,7 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-      allow read: if hasPermission("appointment.read");
+      allow read: if hasPermission("appointment.read") || ownsCustomer(resource.data.customerId);
       allow create, update: if hasPermission("appointment.manage");
       allow delete: if false;
     }
