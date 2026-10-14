@@ -185,13 +185,16 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
 function Approvals({approvals,workflowApprovals=[],staff,reload,logAdmin,onNavigate}){
   const [reviewing,setReviewing]=useState("");
   const [error,setError]=useState("");
-  async function reviewWorkflow(a,decision){
-    if(!can(staff,PERMISSIONS.APPROVAL_MANAGE))return;
-    const reason=window.prompt("Reason for "+decision+" this request:");
-    if(!reason?.trim())return;
+  const [pendingDecision,setPendingDecision]=useState(null);
+  const [decisionReason,setDecisionReason]=useState("");
+  async function reviewWorkflow(event){
+    event.preventDefault();
+    if(!pendingDecision||!can(staff,PERMISSIONS.APPROVAL_MANAGE)||!decisionReason.trim())return;
+    const {approval:a,decision}=pendingDecision;
     setReviewing(a.id);setError("");
     try{
-      await resolveApproval(db,{id:a.id,actorUid:staff.id,decision,reason:reason.trim()});
+      await resolveApproval(db,{id:a.id,actorUid:staff.id,decision,reason:decisionReason.trim()});
+      setPendingDecision(null);setDecisionReason("");
       await reload();
     }catch(err){setError(err?.message||"Unable to complete approval.");}
     finally{setReviewing("");}
@@ -225,7 +228,9 @@ function Approvals({approvals,workflowApprovals=[],staff,reload,logAdmin,onNavig
   const pending=approvals.filter(a=>a.status==="pending");
   return <div className="company-section">
   {error&&<div className="billing-inline-error" role="alert"><strong>Approval error</strong><span>{error}</span></div>}
-  {workflowApprovals.length>0&&<div className="table-card"><div className="table-toolbar"><strong>New workflow approvals</strong><span>{workflowApprovals.filter(x=>x.status==="pending").length} pending</span></div><div className="approval-list">{workflowApprovals.map(a=><div key={a.id}><div><strong>{a.summary||a.kind||"Review"}</strong><span>{a.kind} · {a.recordId}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" disabled={!!reviewing} onClick={()=>reviewWorkflow(a,"rejected")}>Reject</button><button className="primary compact" disabled={!!reviewing||a.requestedBy===staff.id} onClick={()=>reviewWorkflow(a,"approved")}>Approve</button></>}</div></div>)}</div></div>}
+  {pendingDecision&&<div className="modal-backdrop"><form className="modal" onSubmit={reviewWorkflow}><div className="modal-head"><div><div className="eyebrow">MANAGEMENT REVIEW</div><h2>{pendingDecision.decision==="approved"?"Approve request":"Reject request"}</h2></div><button type="button" onClick={()=>setPendingDecision(null)}><X/></button></div><p>{pendingDecision.approval.summary||pendingDecision.approval.kind}</p><label>Decision reason<textarea rows="4" value={decisionReason} onChange={e=>setDecisionReason(e.target.value)} required/></label>{error&&<div className="billing-inline-error" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="secondary" onClick={()=>setPendingDecision(null)}>Cancel</button><button type="submit" className="primary" disabled={!!reviewing||!decisionReason.trim()}>{reviewing?"Saving…":"Record decision"}</button></div></form></div>}
+
+  {workflowApprovals.length>0&&<div className="table-card"><div className="table-toolbar"><strong>New workflow approvals</strong><span>{workflowApprovals.filter(x=>x.status==="pending").length} pending</span></div><div className="approval-list">{workflowApprovals.map(a=><div key={a.id}><div><strong>{a.summary||a.kind||"Review"}</strong><span>{a.kind} · {a.recordId}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" disabled={!!reviewing} onClick={()=>{setPendingDecision({approval:a,decision:"rejected"});setDecisionReason("");}}>Reject</button><button className="primary compact" disabled={!!reviewing||a.requestedBy===staff.id} onClick={()=>{setPendingDecision({approval:a,decision:"approved"});setDecisionReason("");}}>Approve</button></>}</div></div>)}</div></div>}
   <div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.actionType==="siu_adverse_finding"?<button className="secondary compact" onClick={()=>onNavigate?.("SIU")}>Open SIU</button>:a.actionType?.includes("claim")||a.actionType==="large_reserve"?<button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:a.customerId})}>Open claim</button>:a.actionType==="large_refund"?<button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:a.recordId})}>Open billing</button>:null}{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></>}</div></div>)}</div>}</div></div>
 }
 
