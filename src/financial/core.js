@@ -140,13 +140,30 @@ export async function reversePayment(db,{operationId,actorUid,customerId,invoice
 }
 /** Unapplied customer credits are liabilities, not revenue. */
 export function recordCredit(db,{operationId,actorUid,customerId,amountCents}) {
+  positive(amountCents);
+  const creditRef=doc(db,"financialCustomerCredits",required(customerId,"Customer"));
   return post(db,{operationId,actorUid,customerId,amountCents,type:"unapplied_credit",
-    lines:[line("cash",amountCents,0),line("customer_credits",0,amountCents)]});
+    lines:[line("cash",amountCents,0),line("customer_credits",0,amountCents)],
+    mutate:async tx=>{
+      const current=await tx.get(creditRef);
+      const balance=current.exists()?current.data().availableCents:0;
+      if(!Number.isSafeInteger(balance)||balance<0) throw new Error("Invalid credit balance.");
+      return t=>t.set(creditRef,{customerId,availableCents:balance+amountCents,
+        updatedAt:serverTimestamp()},{merge:true});
+    }});
 }
-/** Refund a customer credit; refunds are not equivalent to voiding a paid invoice. */
+/** Refund only available unapplied credit, enforcing balance in the posting transaction. */
 export function refundCredit(db,{operationId,actorUid,customerId,amountCents}) {
+  positive(amountCents);
+  const creditRef=doc(db,"financialCustomerCredits",required(customerId,"Customer"));
   return post(db,{operationId,actorUid,customerId,amountCents,type:"credit_refund",
-    lines:[line("customer_credits",amountCents,0),line("cash",0,amountCents)]});
+    lines:[line("customer_credits",amountCents,0),line("cash",0,amountCents)],
+    mutate:async tx=>{
+      const current=await tx.get(creditRef);
+      const balance=current.exists()?current.data().availableCents:0;
+      if(!Number.isSafeInteger(balance)||balance<amountCents) throw new Error("Insufficient unapplied credit.");
+      return t=>t.update(creditRef,{availableCents:balance-amountCents,updatedAt:serverTimestamp()});
+    }});
 }
 /** Recompute each account's signed balance from immutable posted journals. */
 export function reconcileJournals(journals) {
