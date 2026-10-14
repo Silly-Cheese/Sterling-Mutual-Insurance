@@ -242,3 +242,62 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .claim-siu-finding dt{font-weight:700;color:#375b4e}
 .claim-siu-finding dd{margin:0}
 @media(max-width:600px){.claim-siu-facts{grid-template-columns:1fr}.claim-workflow-guide{padding:12px 14px}}
+
+
+/* Claims navigation hotfix: prevent flex shrink collapsing tabs into a 1px strip. */
+.modal.claim-detail > .record-tabs{
+  position:relative;
+  top:auto;
+  z-index:2;
+  flex:0 0 auto;
+  flex-shrink:0;
+  min-height:54px;
+  height:auto;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 2px 10px;
+  margin:0 0 5px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:thin;
+  overscroll-behavior-x:contain;
+  background:#fff;
+  border-bottom:1px solid var(--ui-border);
+}
+.modal.claim-detail > .record-tabs button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  width:auto;
+  min-height:40px;
+  padding:10px 14px;
+  color:#3b5850;
+  background:#f4f7f5;
+  border:1px solid #dbe5df;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.modal.claim-detail > .record-tabs button.active{
+  color:#fff;
+  background:#183e35;
+  border-color:#183e35;
+}
+.modal.claim-detail > .record-tabs button.active::after{display:none}
+.modal.claim-detail > .record-tabs button:focus-visible{outline:2px solid #bf9f66;outline-offset:2px}
+.modal.claim-detail > .claim-summary,
+.modal.claim-detail > .claim-next-action,
+.modal.claim-detail > .claim-workflow-guide,
+.modal.claim-detail > .claim-summary-grid,
+.modal.claim-detail > .claim-two-col{flex-shrink:0}
+@media(max-width:700px){
+  .modal.claim-detail > .record-tabs{top:auto;min-height:55px}
+  .modal.claim-detail > .record-tabs button{min-height:42px}
+}
