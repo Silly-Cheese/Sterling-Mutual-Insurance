@@ -152,3 +152,69 @@ button:disabled{opacity:.55;cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+
+/* Claims detail: usable viewport navigation and compact investigation tiles */
+.modal-backdrop:has(.claim-detail){padding:clamp(12px,2vw,24px);align-items:center;overflow:hidden}
+.modal.claim-detail{
+  width:min(1120px,100%);
+  max-height:calc(100dvh - 36px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:24px clamp(18px,2vw,30px) 30px;
+  gap:14px;
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+}
+.claim-detail>.modal-head{
+  position:sticky;top:-24px;z-index:5;
+  margin:-24px calc(-1 * clamp(18px,2vw,30px)) 0;
+  padding:20px clamp(18px,2vw,30px) 14px;
+  background:#fff;border-bottom:1px solid var(--ui-border);
+}
+.claim-detail>.modal-head p{margin:4px 0 0;line-height:1.4}
+.claim-detail>.modal-head h2{font-size:25px}
+.claim-detail>.record-tabs{
+  position:sticky;top:67px;z-index:5;
+  background:#fff;margin:0;padding:6px 0 8px;
+  display:flex;gap:4px;max-width:100%;
+  border-bottom:1px solid var(--ui-border);
+}
+.claim-detail>.record-tabs button{
+  font-size:12px;padding:10px 13px;min-height:38px;
+  border-radius:8px 8px 0 0;white-space:nowrap
+}
+.claim-detail .claim-summary{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+  margin:0;padding:16px 20px;border-radius:13px
+}
+.claim-detail .claim-summary>div{min-width:0}
+.claim-detail .claim-summary strong{font-size:16px;overflow-wrap:anywhere}
+.claim-detail .claim-summary span{font-size:10px}
+.claim-detail .claim-summary-grid,.claim-detail .claim-two-col{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch
+}
+.claim-detail .claim-summary-grid>.panel,.claim-detail .claim-two-col>.panel{
+  min-height:0;padding:20px;border-radius:14px
+}
+.claim-detail .claim-summary-grid .panel h3{font-size:19px;margin:9px 0 12px;overflow-wrap:anywhere}
+.claim-detail .claim-summary-grid .panel select{margin-top:8px}
+.claim-next-action{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border:1px solid #d5e5dc;background:#f3f8f5;padding:13px 17px;
+  border-radius:12px
+}
+.claim-next-action>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.claim-next-action strong{font-size:13px;color:#173d31}
+.claim-next-action span{font-size:12px;line-height:1.5;color:#56756a}
+.claim-next-action button{flex-shrink:0}
+@media(max-width:700px){
+  .modal-backdrop:has(.claim-detail){padding:0}
+  .modal.claim-detail{width:100%;height:100dvh;max-height:100dvh;border-radius:0;padding:16px;scrollbar-gutter:auto}
+  .claim-detail>.modal-head{top:-16px;margin:-16px -16px 0;padding:18px 16px 12px}
+  .claim-detail>.record-tabs{top:63px}
+  .claim-detail .claim-summary{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px}
+  .claim-detail .claim-summary-grid,.claim-detail .claim-two-col{grid-template-columns:1fr}
+  .claim-next-action{flex-direction:column;align-items:stretch}
+  .claim-next-action button{width:100%}
+}
