@@ -2,12 +2,14 @@ import {useEffect,useMemo,useState} from "react";
 import {addDoc,collection,doc,getDocs,serverTimestamp,setDoc,updateDoc} from "firebase/firestore";
 import {Activity,Archive,BarChart3,Building2,CheckCircle2,FileText,KeyRound,Landmark,ShieldCheck,Users,X} from "lucide-react";
 import {db} from "../firebase";
+import {resolveApproval} from "../workflows/approvals";
 import {summarizeMutual,auditCoverage} from "../reports/metrics";
 import {can,PERMISSIONS,PERMISSION_GROUPS,ROLE_PRESETS,effectivePermissions} from "../permissions";
 
 const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(v||0));
 
 export default function Company({staff,onNavigate}){
+  const [workflowApprovals,setWorkflowApprovals]=useState([]);
   const [policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[tx,setTx]=useState([]),[staffList,setStaffList]=useState([]),[accounts,setAccounts]=useState([]),[audit,setAudit]=useState([]),[approvals,setApprovals]=useState([]),[archives,setArchives]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[siuCases,setSiuCases]=useState([]),[holds,setHolds]=useState([]),[documentRequests,setDocumentRequests]=useState([]),[tab,setTab]=useState("finance");
 
   async function safeDocs(name){
@@ -15,11 +17,11 @@ export default function Company({staff,onNavigate}){
   }
 
   async function load(){
-    const [p,c,t,s,ac,a,ap,ar,inv,can,siu,h,dr]=await Promise.all([
-      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("accounts"),safeDocs("auditLogs"),safeDocs("approvals"),safeDocs("archives"),safeDocs("billingInvoices"),safeDocs("policyCancellations"),safeDocs("siuCases"),safeDocs("customerHolds"),safeDocs("documentRequests")
+    const [p,c,t,s,ac,a,ap,ar,inv,can,siu,h,dr,wa]=await Promise.all([
+      safeDocs("policies"),safeDocs("claims"),safeDocs("billingTransactions"),safeDocs("staff"),safeDocs("accounts"),safeDocs("auditLogs"),safeDocs("approvals"),safeDocs("archives"),safeDocs("billingInvoices"),safeDocs("policyCancellations"),safeDocs("siuCases"),safeDocs("customerHolds"),safeDocs("documentRequests"),safeDocs("workflowApprovals")
     ]);
     setPolicies(p);setClaims(c);setTx(t);setStaffList(s);setAccounts(ac);setApprovals(ap);setArchives(ar);setInvoices(inv);setCancellations(can);setSiuCases(siu);setHolds(h);setDocumentRequests(dr);
-    setAudit(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));
+    setAudit(a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0)));setWorkflowApprovals(wa);
   }
   useEffect(()=>{load().catch(()=>{})},[]);
 
@@ -63,7 +65,7 @@ export default function Company({staff,onNavigate}){
     {tab==="finance"&&<Finance metrics={metrics}/>}
     {tab==="analytics"&&<Analytics policies={policies} claims={claims} tx={tx} staffList={staffList}/>}    {tab==="exceptions"&&<Exceptions invoices={invoices} cancellations={cancellations} siuCases={siuCases} claims={claims} approvals={approvals} holds={holds} documentRequests={documentRequests} onNavigate={onNavigate}/>}
     {tab==="staff"&&<Staff staffList={staffList} accounts={accounts} canManage={can(staff,PERMISSIONS.ADMIN_MANAGE)||can(staff,PERMISSIONS.STAFF_MANAGE)} canPermissions={can(staff,PERMISSIONS.STAFF_PERMISSION_MANAGE)} logAdmin={logAdmin} reload={load} currentStaff={staff}/>}
-    {tab==="approvals"&&<Approvals approvals={approvals} staff={staff} reload={load} logAdmin={logAdmin} onNavigate={onNavigate}/>}
+    {tab==="approvals"&&<Approvals approvals={approvals} workflowApprovals={workflowApprovals} staff={staff} reload={load} logAdmin={logAdmin} onNavigate={onNavigate}/>}
     {tab==="archives"&&<Archives archives={archives}/>}
     {tab==="audit"&&<Audit audit={audit}/>}
     {tab==="documents"&&<Documents policies={policies}/>}
@@ -180,7 +182,24 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
   </div>
 }
 
-function Approvals({approvals,staff,reload,logAdmin,onNavigate}){
+function Approvals({approvals,workflowApprovals=[],staff,reload,logAdmin,onNavigate}){
+  const [reviewing,setReviewing]=useState("");
+  const [error,setError]=useState("");
+  const [pendingDecision,setPendingDecision]=useState(null);
+  const [decisionReason,setDecisionReason]=useState("");
+  async function reviewWorkflow(event){
+    event.preventDefault();
+    if(!pendingDecision||!can(staff,PERMISSIONS.APPROVAL_MANAGE)||!decisionReason.trim())return;
+    const {approval:a,decision}=pendingDecision;
+    setReviewing(a.id);setError("");
+    try{
+      await resolveApproval(db,{id:a.id,actorUid:staff.id,decision,reason:decisionReason.trim()});
+      setPendingDecision(null);setDecisionReason("");
+      await reload();
+    }catch(err){setError(err?.message||"Unable to complete approval.");}
+    finally{setReviewing("");}
+  }
+
   async function decide(a,status){
     if(status==="approved"){
       if(a.actionType==="claim_settlement"){
@@ -207,7 +226,12 @@ function Approvals({approvals,staff,reload,logAdmin,onNavigate}){
     await logAdmin("Approval "+status,{approvalId:a.id,actionType:a.actionType});await reload();
   }
   const pending=approvals.filter(a=>a.status==="pending");
-  return <div className="company-section"><div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.actionType==="siu_adverse_finding"?<button className="secondary compact" onClick={()=>onNavigate?.("SIU")}>Open SIU</button>:a.actionType?.includes("claim")||a.actionType==="large_reserve"?<button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:a.customerId})}>Open claim</button>:a.actionType==="large_refund"?<button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:a.recordId})}>Open billing</button>:null}{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></>}</div></div>)}</div>}</div></div>
+  return <div className="company-section">
+  {error&&<div className="billing-inline-error" role="alert"><strong>Approval error</strong><span>{error}</span></div>}
+  {pendingDecision&&<div className="modal-backdrop"><form className="modal" onSubmit={reviewWorkflow}><div className="modal-head"><div><div className="eyebrow">MANAGEMENT REVIEW</div><h2>{pendingDecision.decision==="approved"?"Approve request":"Reject request"}</h2></div><button type="button" onClick={()=>setPendingDecision(null)}><X/></button></div><p>{pendingDecision.approval.summary||pendingDecision.approval.kind}</p><label>Decision reason<textarea rows="4" value={decisionReason} onChange={e=>setDecisionReason(e.target.value)} required/></label>{error&&<div className="billing-inline-error" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="secondary" onClick={()=>setPendingDecision(null)}>Cancel</button><button type="submit" className="primary" disabled={!!reviewing||!decisionReason.trim()}>{reviewing?"Saving…":"Record decision"}</button></div></form></div>}
+
+  {workflowApprovals.length>0&&<div className="table-card"><div className="table-toolbar"><strong>New workflow approvals</strong><span>{workflowApprovals.filter(x=>x.status==="pending").length} pending</span></div><div className="approval-list">{workflowApprovals.map(a=><div key={a.id}><div><strong>{a.summary||a.kind||"Review"}</strong><span>{a.kind} · {a.recordId}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" disabled={!!reviewing} onClick={()=>{setPendingDecision({approval:a,decision:"rejected"});setDecisionReason("");}}>Reject</button><button className="primary compact" disabled={!!reviewing||a.requestedBy===staff.id} onClick={()=>{setPendingDecision({approval:a,decision:"approved"});setDecisionReason("");}}>Approve</button></>}</div></div>)}</div></div>}
+  <div className="table-card"><div className="table-toolbar"><strong>Approval queue</strong><span>{pending.length} pending</span></div>{approvals.length===0?<div className="empty-state"><ShieldCheck size={28}/><h3>No approval requests.</h3></div>:<div className="approval-list">{approvals.map(a=><div key={a.id}><div><strong>{a.title||a.actionType}</strong><span>{a.summary||"Management approval requested"} • {a.requestedByName||"Staff"}</span></div><span className={"status-pill "+a.status}>{a.status}</span><div className="approval-actions">{a.actionType==="siu_adverse_finding"?<button className="secondary compact" onClick={()=>onNavigate?.("SIU")}>Open SIU</button>:a.actionType?.includes("claim")||a.actionType==="large_reserve"?<button className="secondary compact" onClick={()=>onNavigate?.("Claims",{customerId:a.customerId})}>Open claim</button>:a.actionType==="large_refund"?<button className="secondary compact" onClick={()=>onNavigate?.("Billing",{policyId:a.recordId})}>Open billing</button>:null}{a.status==="pending"&&can(staff,PERMISSIONS.APPROVAL_MANAGE)&&<><button className="secondary compact" onClick={()=>decide(a,"denied")}>Deny</button><button className="primary compact" onClick={()=>decide(a,"approved")}>Approve</button></>}</div></div>)}</div>}</div></div>
 }
 
 function Archives({archives,staff,reload,logAdmin}){
