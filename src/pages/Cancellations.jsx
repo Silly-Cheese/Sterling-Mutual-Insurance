@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
+import {collection,doc,getDocs,serverTimestamp,updateDoc,writeBatch} from "firebase/firestore";
 import {AlertTriangle,CheckCircle2,Clock3,FileText,RefreshCw,ShieldX} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
@@ -32,8 +32,11 @@ export default function Cancellations({staff,onNavigate}){
       await updateDoc(doc(db,"policies",p.id),{cancellationStage:stage,updatedAt:serverTimestamp()});
     }
     if(stage==="cancelled"){
-      await updateDoc(doc(db,"policyCancellations",c.id),{stage,status:"completed",finalizedAt:serverTimestamp(),finalizedBy:staff.id});
-      await updateDoc(doc(db,"policies",p.id),{status:"cancelled",cancellationStage:"cancelled",cancelledAt:serverTimestamp(),cancelledBy:staff.id,updatedAt:serverTimestamp()});
+      // Finish the cancellation and the linked policy together: no stale "pending" billing badge.
+      const batch=writeBatch(db);
+      batch.update(doc(db,"policyCancellations",c.id),{stage,status:"completed",finalizedAt:serverTimestamp(),finalizedBy:staff.id});
+      batch.update(doc(db,"policies",p.id),{status:"cancelled",billingStatus:"cancelled",cancellationStage:"cancelled",cancelledAt:serverTimestamp(),cancelledBy:staff.id,updatedAt:serverTimestamp()});
+      await batch.commit();
     }
     await load();
   }
@@ -45,7 +48,7 @@ export default function Cancellations({staff,onNavigate}){
   }
   async function reinstate(c){
     const p=policyMap[c.policyId];if(!p)return;
-    await updateDoc(doc(db,"policies",p.id),{status:"active",reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,cancellationStage:null,coverageLapse:{from:c.effectiveDate||p.cancellationEffectiveDate||"unknown",to:new Date().toISOString().slice(0,10)},updatedAt:serverTimestamp()});
+    await updateDoc(doc(db,"policies",p.id),{status:"active",billingStatus:"current",reinstatedAt:serverTimestamp(),reinstatedBy:staff.id,cancellationStage:null,coverageLapse:{from:c.effectiveDate||p.cancellationEffectiveDate||"unknown",to:new Date().toISOString().slice(0,10)},updatedAt:serverTimestamp()});
     await updateDoc(doc(db,"policyCancellations",c.id),{reinstated:true,reinstatedAt:serverTimestamp(),reinstatedBy:staff.id});
     await load();
   }

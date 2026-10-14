@@ -31,7 +31,7 @@ export default function Billing({staff,initialPolicyId}){
     policies.forEach(p=>{
       if(!map[p.customerId])map[p.customerId]={customerId:p.customerId,customerName:p.customerName,policies:[],openBalance:0,pastDue:0,statuses:new Set()};
       map[p.customerId].policies.push(p);
-      map[p.customerId].statuses.add(p.billingStatus||"current");
+      map[p.customerId].statuses.add(p.status==="cancelled"?"cancelled":p.status==="cancellation_pending"?"cancellation_pending":p.billingStatus==="cancellation_pending"?"cancellation_pending":p.billingStatus||"current");
     });
     Object.values(map).forEach(a=>{
       a.openBalance=invoices.filter(i=>i.customerId===a.customerId&&!["paid","void"].includes(i.status)).reduce((s,i)=>s+Number(i.balanceDue??i.amount??0),0);
@@ -39,6 +39,11 @@ export default function Billing({staff,initialPolicyId}){
     });
     return Object.values(map);
   },[policies,invoices]);
+  useEffect(()=>{
+    if(!selectedCustomer)return;
+    const refreshed=customerAccounts.find(a=>a.customerId===selectedCustomer.customerId);
+    if(refreshed)setSelectedCustomer(refreshed);
+  },[customerAccounts]);
   const byPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,tx.filter(t=>t.policyId===p.id)])),[policies,tx]);
   const invoiceByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,invoices.filter(i=>i.policyId===p.id).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))])),[policies,invoices]);
   const planByPolicy=useMemo(()=>Object.fromEntries(policies.map(p=>[p.id,plans.filter(x=>x.policyId===p.id)])),[policies,plans]);
