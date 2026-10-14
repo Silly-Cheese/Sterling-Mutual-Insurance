@@ -1128,3 +1128,28 @@ input:hover,select:hover,textarea:hover{border-color:#bdc9c3}
   .close-checks>div{grid-template-columns:24px 1fr}
   .close-checks>div>strong,.close-checks>div>button{grid-column:2}
 }
+
+
+/* Sterling Mutual — enterprise interface refinement */
+:root{--ui-focus:#256a58;--ui-card-edge:rgba(41,104,84,.20)}
+body{-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"}
+.content{min-width:0}
+.page-heading{gap:18px;flex-wrap:wrap}
+.metric-card,.panel,.table-card,.customer-row{transition:box-shadow .18s ease,border-color .18s ease,transform .18s ease}
+.metric-card:hover,.panel:hover,.table-card:hover{box-shadow:0 12px 32px rgba(25,58,43,.065)}
+button:not(:disabled){cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.60}
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
+:where(input,textarea,select){min-width:0;max-width:100%}
+:where(.panel,.table-card,.customer-row){overflow-wrap:anywhere}
+:where(.table-card){max-width:100%}
+:where(table){width:100%;border-collapse:separate;border-spacing:0}
+:where(th){text-align:left;white-space:nowrap}
+:where(td,th){vertical-align:middle}
+.billing-inline-error{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #cf9c99;border-radius:13px;padding:14px 16px;color:#783933;background:#fff4f1;margin-bottom:18px}
+.billing-inline-error button{margin-left:auto;border:1px solid #cf9c99;border-radius:8px;padding:7px 12px;background:transparent;color:inherit}
+.customer-portal-main .table-card{min-width:0}
+.customer-portal-main .portal-record-list>div{gap:12px}
+@media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid,.customer-portal-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.metric-grid{grid-template-columns:1fr}.page-heading h1{font-size:clamp(28px,7vw,40px)}.customer-portal-main .portal-record-list>div{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.metric-card,.panel,.table-card,.customer-row{transition:none}}

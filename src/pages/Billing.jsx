@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc,writeBatch} from "firebase/firestore";
 import {BadgeDollarSign,CalendarClock,CheckCircle2,CreditCard,FileText,ReceiptText,RefreshCw,TriangleAlert,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
@@ -10,6 +10,7 @@ const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDa
 const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().slice(-7);
 
 export default function Billing({staff,initialPolicyId}){
+  const [billingError,setBillingError]=useState("");
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[credits,setCredits]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[customerTab,setCustomerTab]=useState("overview"),[tab,setTab]=useState("overview"),[invoiceSearch,setInvoiceSearch]=useState(""),[invoiceFilter,setInvoiceFilter]=useState("all"),[paymentSearch,setPaymentSearch]=useState(""),[paymentFilter,setPaymentFilter]=useState("all");
   const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState(""),[allocationMode,setAllocationMode]=useState("auto"),[allocationInvoiceId,setAllocationInvoiceId]=useState("");
   const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"}),[customerInvoiceForm,setCustomerInvoiceForm]=useState({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
@@ -230,51 +231,47 @@ export default function Billing({staff,initialPolicyId}){
     await load();
   }
 
+  function validInvoiceAmount(value){
+    const n=Number(value);
+    if(!Number.isFinite(n)||n<=0||Math.round(n*100)!==n*100)throw new Error("Enter a positive amount with no more than two decimal places.");
+    return n;
+  }
+  async function postInvoice(policy,invoiceData,customerId,customerName){
+    const amount=validInvoiceAmount(invoiceData.amount);
+    if(!invoiceData.description.trim()||!invoiceData.dueDate)throw new Error("Description and due date are required.");
+    const invoiceRef=doc(collection(db,"billingInvoices"));
+    const transactionRef=doc(collection(db,"billingTransactions"));
+    const batch=writeBatch(db);
+    batch.set(invoiceRef,{
+      invoiceNumber:invoiceNo(),policyId:policy.id,policyNumber:policy.policyNumber,
+      customerId,customerName,description:invoiceData.description.trim(),amount,balanceDue:amount,
+      dueDate:invoiceData.dueDate,status:"open",createdBy:staff.id,createdByName:staff.displayName,
+      createdAt:serverTimestamp()
+    });
+    batch.set(transactionRef,{
+      invoiceId:invoiceRef.id,policyId:policy.id,policyNumber:policy.policyNumber,
+      customerId,customerName,type:"charge",amount,note:invoiceData.description.trim(),
+      status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()
+    });
+    await batch.commit();
+    await logEvent(policy,"invoice.created","Invoice created",{invoiceId:invoiceRef.id,amount,dueDate:invoiceData.dueDate});
+    return invoiceRef.id;
+  }
   async function createInvoice(e){
     e.preventDefault();if(!selected)return;
-    const value=Number(invoiceForm.amount||0);
-    await addDoc(collection(db,"billingInvoices"),{invoiceNumber:invoiceNo(),policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,description:invoiceForm.description,amount:value,balanceDue:value,dueDate:invoiceForm.dueDate,status:"open",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
-    await addDoc(collection(db,"billingTransactions"),{policyId:selected.id,policyNumber:selected.policyNumber,customerId:selected.customerId,customerName:selected.customerName,type:"charge",amount:value,note:invoiceForm.description,status:"posted",createdBy:staff.id,createdByName:staff.displayName,createdAt:serverTimestamp()});
-    await logEvent(selected,"invoice.created","Invoice created",{amount:value,dueDate:invoiceForm.dueDate});
-    setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
+    try{
+      await postInvoice(selected,invoiceForm,selected.customerId,selected.customerName);
+      setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
+    }catch(error){setBillingError(error.message||"Invoice could not be created.")}
   }
-
   async function createCustomerInvoice(e){
     e.preventDefault();if(!selectedCustomer)return;
     const policy=selectedCustomer.policies.find(p=>p.id===customerInvoiceForm.policyId);
     if(!policy)return;
-    const value=Number(customerInvoiceForm.amount||0);
-    await addDoc(collection(db,"billingInvoices"),{
-      invoiceNumber:invoiceNo(),
-      policyId:policy.id,
-      policyNumber:policy.policyNumber,
-      customerId:selectedCustomer.customerId,
-      customerName:selectedCustomer.customerName,
-      description:customerInvoiceForm.description,
-      amount:value,
-      balanceDue:value,
-      dueDate:customerInvoiceForm.dueDate,
-      status:"open",
-      createdBy:staff.id,
-      createdByName:staff.displayName,
-      createdAt:serverTimestamp()
-    });
-    await addDoc(collection(db,"billingTransactions"),{
-      policyId:policy.id,
-      policyNumber:policy.policyNumber,
-      customerId:selectedCustomer.customerId,
-      customerName:selectedCustomer.customerName,
-      type:"charge",
-      amount:value,
-      note:customerInvoiceForm.description,
-      status:"posted",
-      createdBy:staff.id,
-      createdByName:staff.displayName,
-      createdAt:serverTimestamp()
-    });
-    await logEvent(policy,"invoice.created","Invoice created from customer billing account",{amount:value,dueDate:customerInvoiceForm.dueDate});
-    setCustomerInvoiceForm({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
-    await load();
+    try{
+      await postInvoice(policy,customerInvoiceForm,selectedCustomer.customerId,selectedCustomer.customerName);
+      setCustomerInvoiceForm({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});await load();
+    }catch(error){setBillingError(error.message||"Invoice could not be created.")}
   }
 
   async function generateStatement(){
@@ -381,6 +378,7 @@ export default function Billing({staff,initialPolicyId}){
   const pastDueTotal=policies.reduce((s,p)=>s+overdue(p).reduce((x,i)=>x+Number(i.balanceDue??i.amount??0),0),0);
 
   return <section className="content">
+    {billingError&&<div className="billing-inline-error" role="alert"><strong>Invoice was not created.</strong><span>{billingError}</span><button type="button" onClick={()=>setBillingError("")}>Dismiss</button></div>}
     <div className="workflow-ribbon service-ribbon"><span>Policy</span><strong>Billing</strong><span>Invoice</span><span>Past Due</span><span>Grace</span><span>Cancellation</span><span>Recovery</span></div>
     <div className="page-heading"><div><div className="eyebrow">PREMIUM OPERATIONS</div><h1>Billing</h1><p>Invoices, payments, balances, payment plans, delinquency, and cancellation prevention in one account view.</p></div></div>
 
