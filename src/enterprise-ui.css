@@ -218,3 +218,27 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .claim-next-action{flex-direction:column;align-items:stretch}
   .claim-next-action button{width:100%}
 }
+
+
+/* Claim workflow orientation and finalized SIU finding records */
+.claim-workflow-guide{
+  display:grid;gap:7px;padding:15px 19px;background:#f0f6f2;
+  border:1px solid #d9e7de;border-radius:14px;color:#20483a
+}
+.claim-workflow-guide>strong{font-size:13px}
+.claim-workflow-guide p{font-size:12.5px;line-height:1.6;color:#587068;margin:0}
+.claim-workflow-current{font-size:12px;color:#46645a}
+.claim-detail .claim-workflow-guide{padding:12px 16px}
+.claim-siu-results>.panel{min-height:0}
+.claim-siu-results h3{font-size:22px;margin:8px 0}
+.claim-siu-results p{color:#566b64;line-height:1.6}
+.claim-siu-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}
+.claim-siu-facts>div{padding:14px;background:#f6f9f7;border:1px solid #e2ebe5;border-radius:10px;min-width:0}
+.claim-siu-facts span{display:block;font-size:11px;color:#668075;margin-bottom:6px}
+.claim-siu-facts strong{display:block;font-size:15px;overflow-wrap:anywhere}
+.claim-siu-finding{padding:17px;border:1px solid #d7e2db;border-radius:12px;margin:12px 0}
+.claim-siu-finding h4{font-size:17px;margin:7px 0}
+.claim-siu-finding dl{display:flex;gap:12px;margin:12px 0 0;font-size:12px}
+.claim-siu-finding dt{font-weight:700;color:#375b4e}
+.claim-siu-finding dd{margin:0}
+@media(max-width:600px){.claim-siu-facts{grid-template-columns:1fr}.claim-workflow-guide{padding:12px 14px}}
