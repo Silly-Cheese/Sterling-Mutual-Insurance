@@ -2,17 +2,20 @@ import {useEffect,useState} from "react";
 import {collection,getDocs} from "firebase/firestore";
 import {ArrowRight,BadgeDollarSign,ClipboardCheck,FileText,ShieldAlert,Users,UsersRound,Plus,UserPlus} from "lucide-react";
 import {db} from "../firebase";
+import {mutualWorkflowSummary} from "../workflows/readiness";
 import {can,PERMISSIONS} from "../permissions";
 
 export default function Dashboard({staff,onNavigate}){
   const [stats,setStats]=useState({customers:0,applications:0,policies:0,claims:0,reserves:0,walkIns:0});
   const [queue,setQueue]=useState([]);
+  const [workflow,setWorkflow]=useState({policyExceptions:0,claimExceptions:0});
 
   useEffect(()=>{
     (async()=>{
       const safe=async name=>{try{return (await getDocs(collection(db,name))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
       const [customers,quotes,policies,claims,walkIns]=await Promise.all([safe("customers"),safe("quotes"),safe("policies"),safe("claims"),safe("walkIns")]);
       const waiting=walkIns.filter(w=>w.status==="waiting");
+      setWorkflow(mutualWorkflowSummary({quotes,policies,claims}));
       setStats({
         customers:customers.length,
         applications:quotes.filter(q=>q.status==="submitted"||q.status==="needs_information"||q.status==="approved").length,
@@ -61,6 +64,8 @@ export default function Dashboard({staff,onNavigate}){
       <article className="panel operating-snapshot">
         <div className="panel-head"><div><div className="eyebrow">TODAY'S BOOK</div><h2>Operating snapshot</h2></div></div>
         <div className="status-list">
+          <div><span>Policy records needing review</span><strong>{workflow.policyExceptions}</strong></div>
+          <div><span>Claims with pending checkpoints</span><strong>{workflow.claimExceptions}</strong></div>
           <div><span>Walk-ins waiting</span><strong>{stats.walkIns}</strong></div>
           <div><span>Applications in motion</span><strong>{stats.applications}</strong></div>
           <div><span>Policies in force</span><strong>{stats.policies}</strong></div>
