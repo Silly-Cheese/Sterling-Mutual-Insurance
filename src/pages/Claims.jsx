@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,query,where,serverTimestamp,updateDoc} from "firebase/firestore";
 import {AlertTriangle,ClipboardCheck,ClipboardPlus,DollarSign,FileSearch,FileWarning,MessageSquare,Search,ShieldAlert,UserCheck,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
@@ -59,6 +59,7 @@ export default function Claims({staff,initialCustomerId,openNew}){
 
     <div className="metric-grid"><article className="metric-card"><div className="metric-icon"><ShieldAlert size={19}/></div><div className="metric-value">{claims.filter(c=>!["closed","denied"].includes(c.status)).length}</div><div className="metric-label">Open claims</div></article><article className="metric-card"><div className="metric-icon"><FileWarning size={19}/></div><div className="metric-value">{money(claims.reduce((s,c)=>s+Number(c.reserveAmount||0),0))}</div><div className="metric-label">Outstanding reserves</div></article><article className="metric-card"><div className="metric-icon"><UserCheck size={19}/></div><div className="metric-value">{claims.filter(c=>c.assignedTo===staff.id).length}</div><div className="metric-label">Assigned to me</div></article><article className="metric-card"><div className="metric-icon"><DollarSign size={19}/></div><div className="metric-value">{money(payments.reduce((s,p)=>s+Number(p.amount||0),0))}</div><div className="metric-label">Paid to date</div></article></div>
 
+    <div className="claim-workflow-guide"><strong>How claims are processed</strong><p>Select a claim below to open its file. Start with Overview, confirm Coverage and Investigation, check SIU results when applicable, then review Financials and Closure. Each tab records a different part of the claim.</p></div>
     <div className="table-card workflow-table"><div className="table-toolbar"><strong>Claims inventory</strong><span>{claims.length} claims</span></div>{claims.length===0?<div className="empty-state"><ShieldAlert size={30}/><h3>No claims have been filed.</h3></div>:<div className="quote-list">{claims.map(c=><button className={"policy-row claim-row "+(c.priority==="high"?"claim-priority":"")} key={c.id} onClick={()=>setSelected(c)}><div className="product-icon"><ShieldAlert size={18}/></div><div className="quote-main"><strong>{c.customerName}</strong><span>{c.claimNumber} • {c.policyNumber} • {c.assignedName||"Unassigned"}</span></div><div className="quote-money"><strong>{money(c.claimedAmount)}</strong><span>{(c.stage||"intake").replaceAll("_"," ")} • Reserve {money(c.reserveAmount)}</span></div><span className={"status-pill "+c.status}>{c.status.replaceAll("_"," ")}</span></button>)}</div>}</div>
 
     {open&&<div className="modal-backdrop"><form className="modal wide" onSubmit={createClaim}><div className="modal-head"><div><div className="eyebrow">FIRST NOTICE OF LOSS</div><h2>File claim</h2></div><button type="button" onClick={()=>setOpen(false)}><X/></button></div><div className="two-col"><label>Policy<select value={form.policyId} onChange={e=>setForm({...form,policyId:e.target.value})} required><option value="">Select policy</option>{policies.map(p=><option key={p.id} value={p.id}>{p.customerName} — {p.policyNumber}</option>)}</select></label><label>Loss date<input type="date" value={form.lossDate} onChange={e=>setForm({...form,lossDate:e.target.value})} required/></label></div><div className="three-col"><label>Loss type<select value={form.lossType} onChange={e=>setForm({...form,lossType:e.target.value})}><option value="collision">Collision</option><option value="theft">Theft</option><option value="weather">Weather</option><option value="property_damage">Property damage</option><option value="liability">Liability</option><option value="other">Other</option></select></label><label>Claimed amount<input type="number" min="0" value={form.claimedAmount} onChange={e=>setForm({...form,claimedAmount:e.target.value})}/></label><label>Priority<select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}><option value="normal">Normal</option><option value="high">High</option></select></label><label>Severity<select value={form.severity} onChange={e=>setForm({...form,severity:e.target.value})}><option value="low">Low</option><option value="moderate">Moderate</option><option value="high">High</option><option value="catastrophic">Catastrophic</option></select></label></div><label>Loss description<textarea rows="5" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} required/></label><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setOpen(false)}>Cancel</button><button className="primary" disabled={saving}>{saving?"Filing…":"File claim"}</button></div></form></div>}
@@ -69,6 +70,24 @@ export default function Claims({staff,initialCustomerId,openNew}){
 
 function ClaimDetail({claim,staff,staffList,payments,contacts,estimates,events,parties,coverages,recoveries,addEvent,onClose,patchClaim,assignClaim,referSIU,reload}){
   const [tab,setTab]=useState("summary");
+  const [siuFindings,setSiuFindings]=useState([]);
+  const [siuError,setSiuError]=useState("");
+  const [siuLoading,setSiuLoading]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    async function getResults(){
+      setSiuLoading(true);setSiuError("");setSiuFindings([]);
+      try{
+        const snapshot=await getDocs(query(collection(db,"siuFindings"),where("claimId","==",claim.id)));
+        if(active)setSiuFindings(snapshot.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="final").sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
+      }catch(error){
+        if(active)setSiuError("SIU findings are unavailable: "+(error?.message||"Access denied."));
+      }finally{if(active)setSiuLoading(false);}
+    }
+    getResults();
+    return ()=>{active=false};
+  },[claim.id,claim.siuStatus,claim.siuResult]);
+
   const [reserves,setReserves]=useState(claim.reserveCategories||{property:0,bodilyInjury:0,rental:0,legal:0,other:0});
   const [settlement,setSettlement]=useState(String(claim.settlementAmount||0));
   const [payment,setPayment]=useState({payee:"",category:"indemnity",amount:"",note:""});
@@ -212,8 +231,28 @@ function ClaimDetail({claim,staff,staffList,payments,contacts,estimates,events,p
   return <div className="modal-backdrop"><div className="modal claim-detail" role="dialog" aria-modal="true" aria-label={"Claim "+claim.claimNumber}><div className="modal-head"><div><div className="eyebrow">CLAIM FILE</div><h2>{claim.claimNumber}</h2><p>{claim.customerName} • {claim.policyNumber}</p></div><button onClick={onClose}><X/></button></div>
     <div className="claim-summary"><div><span>Stage</span><strong>{(claim.stage||"intake").replaceAll("_"," ")}</strong></div><div><span>Severity</span><strong>{claim.severity||"moderate"}</strong></div><div><span>Coverage</span><strong>{claim.coverageStatus}</strong></div><div><span>Reserve</span><strong>{money(claim.reserveAmount)}</strong></div><div><span>Paid</span><strong>{money(paid)}</strong></div><div><span>Investigation</span><strong>{investigationComplete}%</strong></div></div>
     <div className="claim-next-action"><div><strong>Continue claim investigation</strong><span>{investigationComplete}% of the investigation checklist is complete. Work through contacts, coverage and investigation, then review financials.</span></div><button type="button" className="primary compact" onClick={()=>setTab("investigation")}>Open investigation →</button></div>
-    <div className="record-tabs">{[["summary","Summary"],["parties","Parties"],["contacts","Contacts"],["coverage","Coverage"],["investigation","Investigation"],["financials","Financials"],["recovery","Recovery"],["timeline","Timeline"],["closure","Closure"]].map(([k,l])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k)}>{l}</button>)}</div>
+    <div className="claim-workflow-guide">
+      <strong>Claim workflow</strong>
+      <p>1. Confirm customer and loss details · 2. Review coverage and contacts · 3. Complete investigation · 4. Assess reserves and payments · 5. Resolve and close</p>
+      <div className="claim-workflow-current">Current stage: <strong>{(claim.stage||"intake").replaceAll("_"," ")}</strong> · Investigation checklist: <strong>{investigationComplete}%</strong></div>
+    </div>
+        <div className="record-tabs">{[["summary","Overview"],["siu","SIU Result"],["parties","Parties"],["contacts","Contacts"],["coverage","Coverage"],["investigation","Investigation"],["financials","Financials"],["recovery","Recovery"],["timeline","Timeline"],["closure","Closure"]].map(([k,l])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k)}>{l}</button>)}</div>
 
+    {tab==="siu"&&<section className="claim-siu-results">
+      <div className="panel">
+        <div className="eyebrow">SPECIAL INVESTIGATIONS</div>
+        <h3>SIU investigation result</h3>
+        <p>SIU reviews are separate from the insurer's coverage decision. An SIU finding does not automatically approve or deny the claim.</p>
+        <div className="claim-siu-facts">
+          <div><span>Referral status</span><strong>{String(claim.siuStatus||"not referred").replaceAll("_"," ")}</strong></div>
+          <div><span>Case outcome</span><strong>{claim.siuStatus==="completed"&&claim.siuResult?String(claim.siuResult).replaceAll("_"," "):"No final outcome recorded"}</strong></div>
+        </div>
+        {siuLoading&&<p role="status">Loading SIU findings…</p>}
+        {siuError&&<p role="alert">{siuError}</p>}
+        {!siuLoading&&!siuError&&siuFindings.length===0&&<p>No finalized SIU findings are available for this claim. Findings awaiting supervisor review are not shown.</p>}
+        {siuFindings.map(f=><article className="claim-siu-finding" key={f.id}><div className="eyebrow">FINAL FINDING</div><h4>{String(f.classification||"Unclassified").replaceAll("_"," ")}</h4><p>{f.summary||"No summary recorded."}</p><dl><dt>Recommended action</dt><dd>{String(f.recommendedAction||"Not specified").replaceAll("_"," ")}</dd></dl></article>)}
+      </div>
+    </section>}
     {tab==="summary"&&<div className="claim-summary-grid"><article className="panel"><div className="eyebrow">ASSIGNMENT</div><h3>{claim.assignedName||"Unassigned"}</h3>{can(staff,PERMISSIONS.CLAIM_ASSIGN)&&<select value={claim.assignedTo||""} onChange={e=>assignClaim(claim,e.target.value)}><option value="">Unassigned</option>{staffList.map(s=><option key={s.id} value={s.id}>{s.displayName} — {s.title}</option>)}</select>}</article><article className="panel"><div className="eyebrow">LOSS</div><h3>{claim.lossType?.replaceAll("_"," ")}</h3><p>{claim.description}</p></article><article className="panel"><div className="eyebrow">CASE STAGE</div><select value={claim.stage||"intake"} disabled={!can(staff,PERMISSIONS.CLAIM_UPDATE)} onChange={e=>patchClaim(claim,{stage:e.target.value},"stage.changed","Claim stage changed")}><option value="intake">Intake</option><option value="coverage">Coverage</option><option value="investigation">Investigation</option><option value="evaluation">Evaluation</option><option value="payment">Payment</option><option value="resolution">Resolution</option><option value="closed">Closed</option></select></article><article className="panel"><div className="eyebrow">SIU</div><h3>{claim.siuStatus}</h3>{claim.siuStatus!=="referred"&&can(staff,PERMISSIONS.SIU_REFER)&&<button className="secondary compact" onClick={()=>referSIU(claim)}><AlertTriangle size={14}/> Refer to SIU</button>}</article></div>}
 
     {tab==="parties"&&<div className="claim-two-col"><form className="panel" onSubmit={e=>{e.preventDefault();addParty()}}><div className="eyebrow">CLAIM PARTIES</div><h3>Add involved party</h3><label>Party type<select value={party.type} onChange={e=>setParty({...party,type:e.target.value})}><option value="insured">Insured</option><option value="claimant">Claimant</option><option value="driver">Driver</option><option value="passenger">Passenger</option><option value="witness">Witness</option><option value="attorney">Attorney</option><option value="repair_shop">Repair shop</option><option value="medical_provider">Medical provider</option><option value="property_owner">Property owner</option></select></label><label>Name<input value={party.name} onChange={e=>setParty({...party,name:e.target.value})}/></label><div className="two-col"><label>Phone<input value={party.phone} onChange={e=>setParty({...party,phone:e.target.value})}/></label><label>Email<input value={party.email} onChange={e=>setParty({...party,email:e.target.value})}/></label></div><label>Notes<textarea rows="3" value={party.notes} onChange={e=>setParty({...party,notes:e.target.value})}/></label><button className="primary">Add party</button></form><div className="table-card"><div className="table-toolbar"><strong>People & organizations</strong><span>{parties.length}</span></div><div className="claim-party-list">{parties.map(p=><div key={p.id}><UserCheck size={16}/><div><strong>{p.name}</strong><span>{p.type.replaceAll("_"," ")} • {p.phone||p.email||"No contact listed"}</span>{p.notes&&<small>{p.notes}</small>}</div></div>)}</div></div></div>}
