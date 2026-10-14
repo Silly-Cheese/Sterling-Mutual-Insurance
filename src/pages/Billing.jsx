@@ -10,6 +10,7 @@ const addDays=(date,days)=>{const d=new Date(date+"T12:00:00");d.setDate(d.getDa
 const invoiceNo=()=> "INV-"+new Date().getFullYear()+"-"+Date.now().toString().slice(-7);
 
 export default function Billing({staff,initialPolicyId}){
+  const [billingError,setBillingError]=useState("");
   const [policies,setPolicies]=useState([]),[tx,setTx]=useState([]),[invoices,setInvoices]=useState([]),[credits,setCredits]=useState([]),[plans,setPlans]=useState([]),[events,setEvents]=useState([]),[selected,setSelected]=useState(null),[selectedCustomer,setSelectedCustomer]=useState(null),[customerTab,setCustomerTab]=useState("overview"),[tab,setTab]=useState("overview"),[invoiceSearch,setInvoiceSearch]=useState(""),[invoiceFilter,setInvoiceFilter]=useState("all"),[paymentSearch,setPaymentSearch]=useState(""),[paymentFilter,setPaymentFilter]=useState("all");
   const [amount,setAmount]=useState(""),[type,setType]=useState("payment"),[note,setNote]=useState(""),[allocationMode,setAllocationMode]=useState("auto"),[allocationInvoiceId,setAllocationInvoiceId]=useState("");
   const [invoiceForm,setInvoiceForm]=useState({amount:"",dueDate:"",description:"Monthly premium"}),[customerInvoiceForm,setCustomerInvoiceForm]=useState({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});
@@ -261,7 +262,7 @@ export default function Billing({staff,initialPolicyId}){
     try{
       await postInvoice(selected,invoiceForm,selected.customerId,selected.customerName);
       setInvoiceForm({amount:"",dueDate:"",description:"Monthly premium"});await load();
-    }catch(error){window.alert(error.message||"Invoice could not be created.")}
+    }catch(error){setBillingError(error.message||"Invoice could not be created.")}
   }
   async function createCustomerInvoice(e){
     e.preventDefault();if(!selectedCustomer)return;
@@ -270,7 +271,7 @@ export default function Billing({staff,initialPolicyId}){
     try{
       await postInvoice(policy,customerInvoiceForm,selectedCustomer.customerId,selectedCustomer.customerName);
       setCustomerInvoiceForm({policyId:"",amount:"",dueDate:"",description:"Monthly premium"});await load();
-    }catch(error){window.alert(error.message||"Invoice could not be created.")}
+    }catch(error){setBillingError(error.message||"Invoice could not be created.")}
   }
 
   async function generateStatement(){
@@ -377,6 +378,7 @@ export default function Billing({staff,initialPolicyId}){
   const pastDueTotal=policies.reduce((s,p)=>s+overdue(p).reduce((x,i)=>x+Number(i.balanceDue??i.amount??0),0),0);
 
   return <section className="content">
+    {billingError&&<div className="billing-inline-error" role="alert"><strong>Invoice was not created.</strong><span>{billingError}</span><button type="button" onClick={()=>setBillingError("")}>Dismiss</button></div>}
     <div className="workflow-ribbon service-ribbon"><span>Policy</span><strong>Billing</strong><span>Invoice</span><span>Past Due</span><span>Grace</span><span>Cancellation</span><span>Recovery</span></div>
     <div className="page-heading"><div><div className="eyebrow">PREMIUM OPERATIONS</div><h1>Billing</h1><p>Invoices, payments, balances, payment plans, delinquency, and cancellation prevention in one account view.</p></div></div>
 
