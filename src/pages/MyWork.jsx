@@ -9,13 +9,13 @@ const ageDays=ts=>ts?.toDate?Math.max(0,Math.floor((Date.now()-ts.toDate().getTi
 const daysFrom=date=>date?Math.ceil((new Date(date+"T23:59:59")-new Date())/86400000):null;
 
 export default function MyWork({staff,onNavigate}){
-  const [data,setData]=useState({walkIns:[],appointments:[],quotes:[],policies:[],claims:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[],contacts:[],siuCases:[]});
+  const [data,setData]=useState({walkIns:[],appointments:[],quotes:[],policies:[],claims:[],serviceRequests:[],approvals:[],workflowApprovals:[],invoices:[],cancellations:[],contacts:[],siuCases:[]});
   const [filter,setFilter]=useState("all");
 
   useEffect(()=>{(async()=>{
     const safe=async n=>{try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
-    const [walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases]=await Promise.all(["walkIns","appointments","quotes","policies","claims","serviceRequests","approvals","billingInvoices","policyCancellations","claimContacts","siuCases"].map(safe));
-    setData({walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases});
+    const [walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases,workflowApprovals]=await Promise.all(["walkIns","appointments","quotes","policies","claims","serviceRequests","approvals","billingInvoices","policyCancellations","claimContacts","siuCases","workflowApprovals"].map(safe));
+    setData({walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases,workflowApprovals});
   })()},[]);
 
   const items=useMemo(()=>{
@@ -34,6 +34,11 @@ export default function MyWork({staff,onNavigate}){
     if(can(staff,PERMISSIONS.SIU_READ))data.siuCases.filter(x=>x.status==="open"&&(x.assignedTo===staff.id||!x.assignedTo||x.stage==="supervisor_review")).forEach(x=>out.push({priority:x.stage==="supervisor_review"||x.priority==="critical"||ageDays(x.createdAt)>=7?1:2,type:"SIU",title:x.claimNumber,detail:x.stage==="supervisor_review"?"Supervisor review required":x.assignedTo===staff.id?"Assigned SIU investigation":"Unassigned SIU referral",aging:ageDays(x.createdAt)+" days open",page:"SIU",Icon:ShieldAlert}));
     if(can(staff,PERMISSIONS.SERVICE_REQUEST_READ))data.serviceRequests.filter(x=>["submitted","in_review"].includes(x.status)).forEach(x=>out.push({priority:ageDays(x.createdAt)>=3?1:2,type:"Service",title:x.customerName||x.type,detail:(x.type||"request").replaceAll("_"," "),aging:ageDays(x.createdAt)+" days open",page:"Customer Workspace",context:{customerId:x.customerId},Icon:Bell}));
     if(can(staff,PERMISSIONS.APPROVAL_READ))data.approvals.filter(x=>x.status==="pending").forEach(x=>out.push({priority:1,type:"Approvals",title:x.title||x.actionType,detail:x.summary||"Approval required",aging:ageDays(x.createdAt)+" days waiting",page:"Company",Icon:AlertTriangle}));
+    if(can(staff,PERMISSIONS.APPROVAL_READ))data.workflowApprovals.filter(x=>x.status==="pending").forEach(x=>out.push({
+      priority:1,type:"Approvals",title:x.summary||x.kind||"Approval",
+      detail:"Workflow approval · "+(x.kind||"review"),
+      aging:ageDays(x.createdAt)+" days waiting",page:"Company",Icon:AlertTriangle
+    }));
     return out.sort((a,b)=>a.priority-b.priority||String(b.aging).localeCompare(String(a.aging)));
   },[data,staff]);
 
