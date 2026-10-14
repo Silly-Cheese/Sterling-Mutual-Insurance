@@ -48,6 +48,6 @@ export function auditCoverage({audit=[],staff=[]}){
   unknownStaffActors:audit.filter(x=>(x.actorUid||x.createdBy)&&!actorIds.has(x.actorUid||x.createdBy)).length};
 }
 export function csvExport(rows,fields){
- const escape=value=>'"'+String(value??"").replace(/^[=+@-]/,"'").replace(/"/g,'""')+'"';
+ const escape=value=>'"'+String(value??"").replace(/^([=+@-])/,"'$1").replace(/"/g,'""')+'"';
  return [fields.map(escape).join(","),...rows.map(row=>fields.map(field=>escape(row[field])).join(","))].join("\r\n");
 }
