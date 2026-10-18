@@ -1153,3 +1153,18 @@ button:disabled{cursor:not-allowed;opacity:.60}
 @media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid,.customer-portal-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.metric-grid{grid-template-columns:1fr}.page-heading h1{font-size:clamp(28px,7vw,40px)}.customer-portal-main .portal-record-list>div{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.metric-card,.panel,.table-card,.customer-row{transition:none}}
+
+/* Appointment desk: accessible searchable register */
+.appointment-register{margin-top:18px;min-width:0}
+.appointment-register .table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.appointment-register .table-toolbar>div{display:grid;gap:4px}
+.appointment-register .table-toolbar small{color:var(--muted,#adbbb5);font-size:12px}
+.appointment-register-filters{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr));gap:12px;padding:14px 16px}
+.appointment-register-filters label{min-width:0;display:grid;gap:6px;font-size:12px}
+.appointment-register-filters input,.appointment-register-filters select{width:100%;max-width:100%;min-width:0;min-height:39px;border-radius:9px}
+.appointment-register-list{padding:0 13px 13px;max-height:520px;overflow:auto}
+.appointment-register-list .appointment-card{min-width:0}
+.appointment-register-list .appointment-card>div:nth-child(2){min-width:0;overflow-wrap:anywhere}
+.appointment-register .muted{padding:0 16px 14px}
+@media(max-width:750px){.appointment-register-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.appointment-register-filters label:first-child{grid-column:1/-1}}
+@media(max-width:480px){.appointment-register-filters{grid-template-columns:minmax(0,1fr)}.appointment-register-filters label:first-child{grid-column:auto}.appointment-register-list .appointment-card{gap:8px;flex-wrap:wrap}.appointment-register-list .appointment-actions{width:100%;display:flex;gap:8px;flex-wrap:wrap}}
