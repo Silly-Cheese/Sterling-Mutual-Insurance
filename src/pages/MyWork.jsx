@@ -46,7 +46,7 @@ export default function MyWork({staff,onNavigate}){
       if(active)setLoadState({loading:false,failed:["Unable to refresh assigned work: "+error.message]});
     });
     return ()=>{active=false};
-  },[staff?.id,staff?.permissions?.join(","),retry]);
+  },[staff?.id,Array.isArray(staff?.permissions)?staff.permissions.join(","):"",retry]);
 
   const items=useMemo(()=>{
     const out=[];
@@ -86,6 +86,6 @@ export default function MyWork({staff,onNavigate}){
     </div>}
     <div className="metric-grid"><article className="metric-card"><div className="metric-value">{counts.total}</div><div className="metric-label">Items requiring attention</div></article><article className="metric-card"><div className="metric-value">{counts.urgent}</div><div className="metric-label">Priority / aging</div></article><article className="metric-card"><div className="metric-value">{counts.claims}</div><div className="metric-label">Claims work</div></article><article className="metric-card"><div className="metric-value">{counts.approvals}</div><div className="metric-label">Approvals</div></article></div>
     <div className="work-filters">{filters.map(x=><button key={x} className={filter===x?"active":""} onClick={()=>setFilter(x)}>{x}</button>)}</div>
-    <div className="table-card work-center"><div className="table-toolbar"><strong>Attention queue</strong><span>{shown.length} items</span></div>{shown.length===0?<div className="empty-state"><ClipboardCheck size={30}/><h3>You're caught up in this view.</h3></div>:<div className="work-list">{shown.map((item,i)=><button key={i} onClick={()=>onNavigate?.(item.page,item.context)} className={item.priority===1?"priority":""}><div className="work-icon"><item.Icon size={17}/></div><div><strong>{item.title}</strong><span>{item.type} • {item.detail}</span><small>{item.aging}</small></div><ArrowRight size={15}/></button>)}</div>}</div>
+    <div className="table-card work-center"><div className="table-toolbar"><strong>Attention queue</strong><span>{shown.length} items</span></div>{shown.length===0?<div className="empty-state"><ClipboardCheck size={30}/><h3>{loadState.loading?"Checking live work…":loadState.failed.length?"No visible tasks in the sources that loaded.":"You’re caught up in this view."}</h3></div>:<div className="work-list">{shown.map((item,i)=><button key={i} onClick={()=>onNavigate?.(item.page,item.context)} className={item.priority===1?"priority":""}><div className="work-icon"><item.Icon size={17}/></div><div><strong>{item.title}</strong><span>{item.type} • {item.detail}</span><small>{item.aging}</small></div><ArrowRight size={15}/></button>)}</div>}</div>
   </section>
 }
