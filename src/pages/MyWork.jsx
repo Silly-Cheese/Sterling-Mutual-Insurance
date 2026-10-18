@@ -3,8 +3,9 @@ import {collection,getDocs} from "firebase/firestore";
 import {AlertTriangle,ArrowRight,Bell,CalendarDays,ClipboardCheck,CreditCard,FileCheck2,ShieldAlert,UsersRound} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
+import {localISODate} from "../utils/date";
 
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>localISODate();
 const ageDays=ts=>ts?.toDate?Math.max(0,Math.floor((Date.now()-ts.toDate().getTime())/86400000)):0;
 const daysFrom=date=>date?Math.ceil((new Date(date+"T23:59:59")-new Date())/86400000):null;
 
@@ -23,7 +24,7 @@ export default function MyWork({staff,onNavigate}){
     if(can(staff,PERMISSIONS.WALKIN_READ))data.walkIns.filter(x=>x.status==="waiting"||x.assignedTo===staff.id).forEach(x=>out.push({priority:x.priority==="urgent"?1:2,type:"Front Office",title:x.displayName,detail:x.status==="waiting"?"Waiting in lobby":"Assigned to you",aging:"Waiting now",page:"Walk-ins",Icon:UsersRound}));
     if(can(staff,PERMISSIONS.APPOINTMENT_READ))data.appointments.filter(x=>x.date===today()&&!["completed","cancelled"].includes(x.status)).forEach(x=>out.push({priority:2,type:"Front Office",title:x.customerName,detail:(x.time||"")+" • "+x.department,aging:"Today",page:"Appointments",Icon:CalendarDays}));
     if(can(staff,PERMISSIONS.UNDERWRITING_REVIEW))data.quotes.filter(x=>x.status==="submitted").forEach(x=>out.push({priority:ageDays(x.submittedAt||x.createdAt)>=3?1:2,type:"Underwriting",title:x.customerName,detail:"Application awaiting review",aging:ageDays(x.submittedAt||x.createdAt)+" days waiting",page:"Quotes & Applications",context:{customerId:x.customerId},Icon:ClipboardCheck}));
-    if(can(staff,PERMISSIONS.POLICY_RENEW)){const horizon=new Date();horizon.setDate(horizon.getDate()+30);const h=horizon.toISOString().slice(0,10);data.policies.filter(x=>x.status==="active"&&x.expirationDate&&x.expirationDate<=h).forEach(x=>{const days=daysFrom(x.expirationDate);out.push({priority:days!==null&&days<=10?1:2,type:"Renewal",title:x.customerName,detail:x.policyNumber+" expires "+x.expirationDate,aging:days+" days remaining",page:"Policies",context:{customerId:x.customerId},Icon:FileCheck2})})}
+    if(can(staff,PERMISSIONS.POLICY_RENEW)){const horizon=new Date();horizon.setDate(horizon.getDate()+30);const h=localISODate(horizon);data.policies.filter(x=>x.status==="active"&&x.expirationDate&&x.expirationDate<=h).forEach(x=>{const days=daysFrom(x.expirationDate);out.push({priority:days!==null&&days<=10?1:2,type:"Renewal",title:x.customerName,detail:x.policyNumber+" expires "+x.expirationDate,aging:days+" days remaining",page:"Policies",context:{customerId:x.customerId},Icon:FileCheck2})})}
     if(can(staff,PERMISSIONS.CLAIM_READ))data.claims.filter(x=>x.assignedTo===staff.id||(!x.assignedTo&&x.coverageStatus==="pending")).forEach(x=>{
       const last=data.contacts.filter(c=>c.claimId===x.id).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];
       const days=last?ageDays(last.createdAt):ageDays(x.createdAt);
