@@ -13,11 +13,40 @@ export default function MyWork({staff,onNavigate}){
   const [data,setData]=useState({walkIns:[],appointments:[],quotes:[],policies:[],claims:[],serviceRequests:[],approvals:[],workflowApprovals:[],invoices:[],cancellations:[],contacts:[],siuCases:[]});
   const [filter,setFilter]=useState("all");
 
-  useEffect(()=>{(async()=>{
-    const safe=async n=>{try{return (await getDocs(collection(db,n))).docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
-    const [walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases,workflowApprovals]=await Promise.all(["walkIns","appointments","quotes","policies","claims","serviceRequests","approvals","billingInvoices","policyCancellations","claimContacts","siuCases","workflowApprovals"].map(safe));
-    setData({walkIns,appointments,quotes,policies,claims,serviceRequests,approvals,invoices,cancellations,contacts,siuCases,workflowApprovals});
-  })()},[]);
+  const [loadState,setLoadState]=useState({loading:true,failed:[]}),[retry,setRetry]=useState(0);
+  useEffect(()=>{
+    let active=true;
+    setLoadState({loading:true,failed:[]});
+    const sources=[
+      ["walkIns",PERMISSIONS.WALKIN_READ],
+      ["appointments",PERMISSIONS.APPOINTMENT_READ],
+      ["quotes",PERMISSIONS.UNDERWRITING_REVIEW],
+      ["policies",PERMISSIONS.POLICY_READ],
+      ["claims",PERMISSIONS.CLAIM_READ],
+      ["serviceRequests",PERMISSIONS.SERVICE_REQUEST_READ],
+      ["approvals",PERMISSIONS.APPROVAL_READ],
+      ["invoices",PERMISSIONS.BILLING_READ,"billingInvoices"],
+      ["cancellations",PERMISSIONS.POLICY_READ,"policyCancellations"],
+      ["contacts",PERMISSIONS.CLAIM_READ,"claimContacts"],
+      ["siuCases",PERMISSIONS.SIU_READ],
+      ["workflowApprovals",PERMISSIONS.APPROVAL_READ]
+    ];
+    (async()=>{
+      const results=await Promise.all(sources.map(async([key,permission,path])=>{
+        if(!can(staff,permission))return {key,rows:[],skipped:true};
+        try{
+          const snapshot=await getDocs(collection(db,path||key));
+          return {key,rows:snapshot.docs.map(d=>({id:d.id,...d.data()}))};
+        }catch(error){return {key,rows:[],error:error.code||error.message||"Unavailable"};}
+      }));
+      if(!active)return;
+      setData(Object.fromEntries(results.map(x=>[x.key,x.rows])));
+      setLoadState({loading:false,failed:results.filter(x=>x.error).map(x=>x.key)});
+    })().catch(error=>{
+      if(active)setLoadState({loading:false,failed:["Unable to refresh assigned work: "+error.message]});
+    });
+    return ()=>{active=false};
+  },[staff?.id,staff?.permissions?.join(","),retry]);
 
   const items=useMemo(()=>{
     const out=[];
@@ -49,6 +78,12 @@ export default function MyWork({staff,onNavigate}){
 
   return <section className="content">
     <div className="page-heading"><div><div className="eyebrow">PERSONAL OPERATIONS</div><h1>My Work</h1><p>Generated automatically from live records, aging, deadlines, delinquency, and assigned work—never manually-created tasks.</p></div></div>
+    {loadState.loading&&<div className="billing-inline-error" role="status"><span>Loading authorized workload sources…</span></div>}
+    {loadState.failed.length>0&&<div className="billing-inline-error" role="alert">
+      <strong>Some records could not be loaded</strong>
+      <span>{loadState.failed.join(", ")}. Workload counts may be incomplete. You can retry, or ask an administrator to review your permissions.</span>
+      <button type="button" onClick={()=>setRetry(v=>v+1)}>Retry loading</button>
+    </div>}
     <div className="metric-grid"><article className="metric-card"><div className="metric-value">{counts.total}</div><div className="metric-label">Items requiring attention</div></article><article className="metric-card"><div className="metric-value">{counts.urgent}</div><div className="metric-label">Priority / aging</div></article><article className="metric-card"><div className="metric-value">{counts.claims}</div><div className="metric-label">Claims work</div></article><article className="metric-card"><div className="metric-value">{counts.approvals}</div><div className="metric-label">Approvals</div></article></div>
     <div className="work-filters">{filters.map(x=><button key={x} className={filter===x?"active":""} onClick={()=>setFilter(x)}>{x}</button>)}</div>
     <div className="table-card work-center"><div className="table-toolbar"><strong>Attention queue</strong><span>{shown.length} items</span></div>{shown.length===0?<div className="empty-state"><ClipboardCheck size={30}/><h3>You're caught up in this view.</h3></div>:<div className="work-list">{shown.map((item,i)=><button key={i} onClick={()=>onNavigate?.(item.page,item.context)} className={item.priority===1?"priority":""}><div className="work-icon"><item.Icon size={17}/></div><div><strong>{item.title}</strong><span>{item.type} • {item.detail}</span><small>{item.aging}</small></div><ArrowRight size={15}/></button>)}</div>}</div>
