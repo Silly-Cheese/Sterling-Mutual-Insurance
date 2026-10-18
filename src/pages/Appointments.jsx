@@ -3,11 +3,13 @@ import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc,writeBatch} from
 import {CalendarDays,CheckCircle2,Clock3,Plus,UsersRound,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
+import {localISODate,filterAppointments} from "../utils/date";
 
 const empty={customerId:"",customerName:"",date:"",time:"",department:"Sales",reason:"",notes:""};
 
 export default function Appointments({staff,onNavigate,openNew}){
   const [appointments,setAppointments]=useState([]),[customers,setCustomers]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState(empty),[saving,setSaving]=useState(false),[error,setError]=useState(""),[customerError,setCustomerError]=useState(""),[workingId,setWorkingId]=useState("");
+  const [queryText,setQueryText]=useState(""),[statusFilter,setStatusFilter]=useState("all"),[sortBy,setSortBy]=useState("soonest");
 
   async function load(){
     const appointmentsRequest=getDocs(collection(db,"appointments"));
@@ -30,10 +32,11 @@ export default function Appointments({staff,onNavigate,openNew}){
   useEffect(()=>{load().catch(()=>{})},[]);
   useEffect(()=>{if(openNew)setOpen(true)},[openNew]);
 
-  const today=new Date().toLocaleDateString("en-CA");
+  const today=localISODate();
   const todays=appointments.filter(a=>a.date===today&&!["completed","cancelled"].includes(a.status));
   const upcoming=appointments.filter(a=>a.date>today&&!["completed","cancelled"].includes(a.status)).slice(0,16);
   const done=appointments.filter(a=>["completed","cancelled"].includes(a.status)).slice(-12).reverse();
+  const matching=useMemo(()=>filterAppointments(appointments,{query:queryText,status:statusFilter,sort:sortBy}),[appointments,queryText,statusFilter,sortBy]);
 
   async function create(e){
     e.preventDefault();
@@ -60,6 +63,7 @@ export default function Appointments({staff,onNavigate,openNew}){
   }
 
   async function patch(a,changes){
+    if(!can(staff,PERMISSIONS.APPOINTMENT_MANAGE)){setError("You need appointment.manage to change appointment status.");return;}
     setWorkingId(a.id);setError("");
     try{
       await updateDoc(doc(db,"appointments",a.id),{...changes,updatedAt:serverTimestamp(),updatedBy:staff.id});
@@ -68,6 +72,7 @@ export default function Appointments({staff,onNavigate,openNew}){
     finally{setWorkingId("");}
   }
   async function checkIn(a){
+    if(!can(staff,PERMISSIONS.APPOINTMENT_MANAGE)){setError("You need appointment.manage to check in visitors.");return;}
     if(workingId)return;
     setWorkingId(a.id);setError("");
     try{
@@ -109,12 +114,34 @@ export default function Appointments({staff,onNavigate,openNew}){
     <div className="appointment-grid">
       <article className="panel">
         <div className="panel-head"><div><div className="eyebrow">TODAY</div><h2>Today's appointments</h2></div></div>
-        {todays.length===0?<div className="queue-empty"><CalendarDays size={28}/><h3>No appointments today.</h3><p>The front desk is clear.</p></div>:<div className="appointment-list">{todays.map(a=><div className="appointment-card" key={a.id}><div className="appointment-time">{a.time||"—"}</div><div><strong>{a.customerName}</strong><span>{a.department} • {a.reason||"General appointment"}</span><small>{a.status.replaceAll("_"," ")}</small></div><div className="appointment-actions">{a.status==="scheduled"&&<button className="primary compact" disabled={workingId===a.id} onClick={()=>checkIn(a)}>Check in</button>}<button className="secondary compact" disabled={workingId===a.id} onClick={()=>patch(a,{status:"completed",completedAt:serverTimestamp()})}><CheckCircle2 size={14}/> Complete</button></div></div>)}</div>}
+        {todays.length===0?<div className="queue-empty"><CalendarDays size={28}/><h3>No appointments today.</h3><p>The front desk is clear.</p></div>:<div className="appointment-list">{todays.map(a=><div className="appointment-card" key={a.id}><div className="appointment-time">{a.time||"—"}</div><div><strong>{a.customerName}</strong><span>{a.department} • {a.reason||"General appointment"}</span><small>{a.status.replaceAll("_"," ")}</small></div><div className="appointment-actions">{can(staff,PERMISSIONS.APPOINTMENT_MANAGE)&&a.status==="scheduled"&&<button className="primary compact" disabled={workingId===a.id} onClick={()=>checkIn(a)}>Check in</button>}{can(staff,PERMISSIONS.APPOINTMENT_MANAGE)&&["scheduled","checked_in"].includes(a.status)&&<button className="secondary compact" disabled={workingId===a.id} onClick={()=>patch(a,{status:"completed",completedAt:serverTimestamp()})}><CheckCircle2 size={14}/> Complete</button>}</div></div>)}</div>}
       </article>
       <article className="panel">
         <div className="panel-head"><div><div className="eyebrow">UPCOMING</div><h2>Next appointments</h2></div></div>
         {upcoming.length===0?<div className="queue-empty"><Clock3 size={28}/><h3>Nothing scheduled ahead.</h3></div>:<div className="appointment-list">{upcoming.map(a=><div className="appointment-card compact" key={a.id}><div className="appointment-date">{a.date}</div><div><strong>{a.customerName}</strong><span>{a.time} • {a.department}</span></div></div>)}</div>}
       </article>
+    </div>
+
+    <div className="table-card appointment-register">
+      <div className="table-toolbar"><div><strong>All appointments</strong><small> Find visits by customer, department, or date.</small></div><span>{matching.length} of {appointments.length}</span></div>
+      <div className="appointment-register-filters">
+        <label>Search<input aria-label="Search appointments" type="search" value={queryText} onChange={e=>setQueryText(e.target.value)} placeholder="Customer, department, reason or date"/></label>
+        <label>Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+          <option value="all">All statuses</option><option value="scheduled">Scheduled</option>
+          <option value="checked_in">Checked in</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+        </select></label>
+        <label>Sort<select value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+          <option value="soonest">Earliest first</option><option value="latest">Latest first</option>
+          <option value="customer">Customer A–Z</option>
+        </select></label>
+      </div>
+      {matching.length===0?<div className="empty-state compact-empty">No appointments match these filters.</div>:
+       <div className="appointment-list appointment-register-list">{matching.slice(0,100).map(a=><div key={a.id} className="appointment-card compact">
+        <div className="appointment-date">{a.date}<small>{a.time||"—"}</small></div>
+        <div><strong>{a.customerName||"Guest"}</strong><span>{a.department} • {a.reason||"General appointment"}</span><small>{(a.status||"scheduled").replaceAll("_"," ")}</small></div>
+        <div className="appointment-actions">{can(staff,PERMISSIONS.APPOINTMENT_MANAGE)&&a.status==="scheduled"&&<button className="secondary compact" disabled={workingId===a.id} onClick={()=>checkIn(a)}>Check in</button>}{can(staff,PERMISSIONS.APPOINTMENT_MANAGE)&&["scheduled","checked_in"].includes(a.status)&&<button className="secondary compact" disabled={workingId===a.id} onClick={()=>patch(a,{status:"completed",completedAt:serverTimestamp()})}>Complete</button>}</div>
+       </div>)}</div>}
+      {matching.length>100&&<p className="muted">Showing the first 100 matching appointments. Narrow the search to find older visits.</p>}
     </div>
 
     <div className="table-card"><div className="table-toolbar"><strong>Recent appointment history</strong><span>{done.length}</span></div>{done.length===0?<div className="empty-state compact-empty">Completed and cancelled appointments will appear here.</div>:<div className="appointment-history">{done.map(a=><div key={a.id}><span className={"status-pill "+a.status}>{a.status}</span><div><strong>{a.customerName}</strong><span>{a.date} {a.time} • {a.department}</span></div></div>)}</div>}</div>
