@@ -317,20 +317,15 @@ service cloud.firestore {
     // Public users can only create immutable intake records, never official claims,
     // payment records, settlement values or coverage decisions.
     match /medicalClaimRequests/{requestId} {
-      allow read: if hasPermission("claim.read")
+      // Firestore list queries must constrain submitterUid == signed-in uid.
+      // Owner-only history works even when a policy is not matched yet.
+      allow list: if hasPermission("claim.read")
                   || hasPermission("claim.createForCustomer")
-                  || (
-                    signedIn()
-                    && resource.data.submitterUid == request.auth.uid
-                    && (
-                      (resource.data.submitterRole == "provider" && isApprovedMedicalProvider())
-                      || (resource.data.submitterRole == "customer" && ownsCustomer(resource.data.customerId))
-                    )
-                  )
-                  || (
-                    resource.data.customerId != ""
-                    && ownsCustomer(resource.data.customerId)
-                  );
+                  || (signedIn() && resource.data.submitterUid == request.auth.uid);
+      allow get: if hasPermission("claim.read")
+                 || hasPermission("claim.createForCustomer")
+                 || (signedIn() && resource.data.submitterUid == request.auth.uid)
+                 || (resource.data.customerId != "" && ownsCustomer(resource.data.customerId));
       allow create: if medicalRequestCreateValid();
       allow update: if medicalReviewUpdateValid(requestId);
       allow delete: if false;
