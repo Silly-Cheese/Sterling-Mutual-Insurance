@@ -175,14 +175,25 @@ service cloud.firestore {
     match /accounts/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid)
                   || hasPermission("staff.read")
-                  || hasPermission("staff.manage");
+                  || hasPermission("staff.manage")
+                  || (hasPermission("customer.account.manage") && resource.data.get("accountType","") == "customer");
       allow create: if signedIn()
                     && request.auth.uid == uid
                     && exists(bootstrapPath())
                     && get(bootstrapPath()).data.initialized == true
                     && request.resource.data.authUid == request.auth.uid
                     && request.resource.data.accessStatus == "pending";
-      allow update: if hasPermission("staff.manage");
+      allow update: if hasPermission("staff.manage")
+                    || (
+                      hasPermission("customer.account.manage")
+                      && resource.data.get("accountType","") == "customer"
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        "accessStatus","customerId","linkedAt","linkedBy"
+                      ])
+                      && request.resource.data.accessStatus == "customer"
+                      && request.resource.data.linkedBy == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/customerAccounts/$(uid)).data.customerId == request.resource.data.customerId
+                    );
       allow delete: if false;
     }
 
