@@ -9,11 +9,30 @@ const money=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",ma
 export default function CustomerPortal({user,customerAccount,onSignOut}){
   const [customer,setCustomer]=useState(null),[policies,setPolicies]=useState([]),[claims,setClaims]=useState([]),[billing,setBilling]=useState([]),[invoices,setInvoices]=useState([]),[cancellations,setCancellations]=useState([]),[documents,setDocuments]=useState([]),[documentRequests,setDocumentRequests]=useState([]),[requests,setRequests]=useState([]),[appointments,setAppointments]=useState([]),[loading,setLoading]=useState(true),[request,setRequest]=useState({type:"proof_of_insurance",details:""}),[sending,setSending]=useState(false),[tab,setTab]=useState(()=>new URLSearchParams(window.location.search).has("medicalInvoice")?"medical":"overview");
 
+  const [profilePhone,setProfilePhone]=useState("");
+  const [profileSaving,setProfileSaving]=useState(false);
+  const [profileMessage,setProfileMessage]=useState("");
+  const [profileError,setProfileError]=useState("");
+
+  async function saveProfile(e){
+    e.preventDefault();
+    setProfileMessage("");setProfileError("");
+    const phone=profilePhone.trim();
+    if(phone.length>30){setProfileError("Phone numbers must be 30 characters or fewer.");return}
+    setProfileSaving(true);
+    try{
+      await updateDoc(doc(db,"customers",customerAccount.customerId),{phone,updatedAt:serverTimestamp()});
+      setCustomer(old=>({...old,phone}));
+      setProfileMessage("Your contact information has been updated.");
+    }catch(e){setProfileError(e?.message||"Unable to update your contact information.")}
+    finally{setProfileSaving(false)}
+  }
+
   async function load(){
     const customerId=customerAccount.customerId;
     const safe=async(name)=>{try{const s=await getDocs(query(collection(db,name),where("customerId","==",customerId)));return s.docs.map(d=>({id:d.id,...d.data()}))}catch{return []}};
     const [cSnap,p,cl,b,i,can,d,dr,r,a]=await Promise.all([getDoc(doc(db,"customers",customerId)),safe("policies"),safe("claims"),safe("billingTransactions"),safe("billingInvoices"),safe("policyCancellations"),safe("documents"),safe("documentRequests"),safe("serviceRequests"),safe("appointments")]);
-    if(cSnap.exists())setCustomer({id:cSnap.id,...cSnap.data()});setPolicies(p);setClaims(cl);setBilling(b);setInvoices(i);setCancellations(can);setDocuments(d);setDocumentRequests(dr.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setRequests(r.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setAppointments(a.sort((x,y)=>String(x.date+x.time).localeCompare(String(y.date+y.time))));setLoading(false);
+    if(cSnap.exists()){setCustomer({id:cSnap.id,...cSnap.data()});setProfilePhone(cSnap.data().phone||"")};setPolicies(p);setClaims(cl);setBilling(b);setInvoices(i);setCancellations(can);setDocuments(d);setDocumentRequests(dr.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setRequests(r.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));setAppointments(a.sort((x,y)=>String(x.date+x.time).localeCompare(String(y.date+y.time))));setLoading(false);
   }
   useEffect(()=>{load().catch(()=>setLoading(false))},[customerAccount.customerId]);
 
@@ -56,7 +75,7 @@ export default function CustomerPortal({user,customerAccount,onSignOut}){
   }
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Opening your account…</span></div>;
-  const tabs=[["overview","Overview"],["policies","Policies"],["claims","Claims"],["medical","Medical Payouts"],["billing","Billing"],["documents","Documents"],["document_requests","Requested Documents"],["cancellations","Cancellations"],["appointments","Appointments"],["requests","Requests"]];
+  const tabs=[["overview","Overview"],["profile","My Profile"],["policies","Policies"],["claims","Claims"],["medical","Medical Payouts"],["billing","Billing"],["documents","Documents"],["document_requests","Requested Documents"],["cancellations","Cancellations"],["appointments","Appointments"],["requests","Requests"]];
 
   return <div className="customer-portal-shell">
     <header className="customer-portal-header"><div className="brand-lockup"><div className="brand-mark">SM</div><div><strong>Sterling Mutual</strong><span>Customer Account</span></div></div><button className="secondary compact" onClick={onSignOut}><LogOut size={15}/> Sign out</button></header>
@@ -66,6 +85,22 @@ export default function CustomerPortal({user,customerAccount,onSignOut}){
       <div className="record-tabs customer-portal-tabs">{tabs.map(([k,l])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k)}>{l}</button>)}</div>
 
       {tab==="overview"&&<div className="customer-portal-grid"><section className="table-card"><div className="table-toolbar"><strong>Current coverage</strong><span>{policies.length}</span></div><div className="portal-record-list">{policies.slice(0,4).map(p=><div key={p.id}><FileCheck2 size={18}/><div><strong>{p.policyNumber}</strong><span>{p.product?.toUpperCase()} • {p.status}</span></div><div><strong>{money(p.monthlyPremium)}/mo</strong></div></div>)}</div></section><section className="table-card"><div className="table-toolbar"><strong>Service requests</strong><span>{requests.length}</span></div>{requests.length===0?<div className="empty-state compact-empty"><Bell size={25}/><h3>No requests yet.</h3></div>:<div className="portal-record-list">{requests.slice(0,4).map(r=><div key={r.id}><Bell size={18}/><div><strong>{String(r.type).replaceAll("_"," ")}</strong><span>{r.status}</span></div></div>)}</div>}</section></div>}
+      {tab==="profile"&&<div className="customer-portal-grid">
+        <form className="panel customer-profile-panel" onSubmit={saveProfile}>
+          <div className="eyebrow">YOUR CUSTOMER RECORD</div>
+          <h2>My profile</h2>
+          <p>Keep your contact information up to date. Your customer record was securely linked to this login.</p>
+          <div className="customer-profile-fields">
+            <label>Customer name<input value={customer?.displayName||customerAccount.displayName||""} readOnly/></label>
+            <label>Login email<input type="email" value={customerAccount.email||user.email||""} readOnly/></label>
+            <label>Phone number<input type="tel" autoComplete="tel" maxLength={30} value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="Optional phone number"/></label>
+          </div>
+          {profileError&&<div className="customer-onboarding-error" role="alert">{profileError}</div>}
+          {profileMessage&&<div className="notice-box" role="status">{profileMessage}</div>}
+          <button className="primary" type="submit" disabled={profileSaving}>{profileSaving?"Saving…":"Save phone number"}</button>
+        </form>
+        <div className="panel customer-profile-info"><ShieldAlert size={26}/><h3>Your coverage remains separate.</h3><p>Creating a profile does not automatically issue insurance or attach a policy belonging to another account. If you already have Sterling coverage, ask our staff to confirm the matching customer record.</p><div className="record-summary"><div><span>Active policies</span><strong>{policies.filter(p=>p.status==="active").length}</strong></div><div><span>Customer ID</span><strong>{customerAccount.customerId.slice(0,8).toUpperCase()}</strong></div></div></div>
+      </div>}
       {tab==="policies"&&<PortalList items={policies} empty="No policies yet." render={p=><><FileCheck2 size={18}/><div><strong>{p.policyNumber}</strong><span>{p.product?.toUpperCase()} • {p.status}</span></div><div><strong>{money(p.monthlyPremium)}/mo</strong><span>{p.effectiveDate} → {p.expirationDate}</span></div></>}/>}
       {tab==="claims"&&<PortalList items={claims} empty="No claims on file." render={c=><><ShieldAlert size={18}/><div><strong>{c.claimNumber}</strong><span>{c.lossType} • {c.status}</span></div><div><strong>{money(c.claimedAmount)}</strong><span>Coverage: {c.coverageStatus}</span></div></>}/>}
       {tab==="medical"&&<MedicalClaimPortal user={user} customerAccount={customerAccount} policies={policies}/>}
