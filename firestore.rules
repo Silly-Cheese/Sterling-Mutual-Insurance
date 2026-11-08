@@ -118,10 +118,12 @@ service cloud.firestore {
     // atomic batch. Existing customer and policy records cannot be claimed here.
     function canCreateOwnCustomerRecord(customerId) {
       let d = request.resource.data;
+      let account = get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data;
+      let portalAfter = getAfter(/databases/$(database)/documents/customerAccounts/$(request.auth.uid)).data;
+      let accountAfter = getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data;
       return signedIn()
-        && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
-        && get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.accountType == "customer"
-        && get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.accessStatus == "pending"
+        && account.accountType == "customer"
+        && account.accessStatus == "pending"
         && !exists(/databases/$(database)/documents/customerAccounts/$(request.auth.uid))
         && d.keys().hasOnly([
           "firstName","lastName","displayName","email","phone","authUid",
@@ -144,19 +146,22 @@ service cloud.firestore {
         && d.source == "self_service"
         && d.createdAt == request.time
         && d.updatedAt == request.time
-        && getAfter(/databases/$(database)/documents/customerAccounts/$(request.auth.uid)).data.customerId == customerId
-        && getAfter(/databases/$(database)/documents/customerAccounts/$(request.auth.uid)).data.authUid == request.auth.uid
-        && getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.customerId == customerId
-        && getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.accessStatus == "customer";
+        && portalAfter.customerId == customerId
+        && portalAfter.authUid == request.auth.uid
+        && accountAfter.customerId == customerId
+        && accountAfter.accessStatus == "customer";
     }
+
 
     function canCreateOwnCustomerPortal(uid) {
       let d = request.resource.data;
+      let account = get(/databases/$(database)/documents/accounts/$(uid)).data;
+      let customerAfter = getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data;
+      let accountAfter = getAfter(/databases/$(database)/documents/accounts/$(uid)).data;
       return signedIn()
         && request.auth.uid == uid
-        && exists(/databases/$(database)/documents/accounts/$(uid))
-        && get(/databases/$(database)/documents/accounts/$(uid)).data.accountType == "customer"
-        && get(/databases/$(database)/documents/accounts/$(uid)).data.accessStatus == "pending"
+        && account.accountType == "customer"
+        && account.accessStatus == "pending"
         && d.keys().hasOnly([
           "authUid","customerId","email","displayName","status","createdBy","createdAt"
         ])
@@ -169,16 +174,19 @@ service cloud.firestore {
         && d.email == request.auth.token.email.lower()
         && d.createdAt == request.time
         && d.customerId is string && d.customerId.size() > 0 && d.customerId.size() <= 128
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.authUid == uid
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.source == "self_service"
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.createdAt == request.time
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.displayName == d.displayName
-        && getAfter(/databases/$(database)/documents/accounts/$(uid)).data.accessStatus == "customer"
-        && getAfter(/databases/$(database)/documents/accounts/$(uid)).data.customerId == d.customerId;
+        && customerAfter.authUid == uid
+        && customerAfter.source == "self_service"
+        && customerAfter.createdAt == request.time
+        && customerAfter.displayName == d.displayName
+        && accountAfter.accessStatus == "customer"
+        && accountAfter.customerId == d.customerId;
     }
+
 
     function canFinishOwnCustomerSignup(uid) {
       let d = request.resource.data;
+      let portalAfter = getAfter(/databases/$(database)/documents/customerAccounts/$(uid)).data;
+      let customerAfter = getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data;
       return signedIn()
         && request.auth.uid == uid
         && resource.data.accountType == "customer"
@@ -190,12 +198,13 @@ service cloud.firestore {
         && d.customerId is string && d.customerId.size() > 0 && d.customerId.size() <= 128
         && d.linkedBy == uid
         && d.linkedAt == request.time
-        && getAfter(/databases/$(database)/documents/customerAccounts/$(uid)).data.customerId == d.customerId
-        && getAfter(/databases/$(database)/documents/customerAccounts/$(uid)).data.createdBy == uid
-        && getAfter(/databases/$(database)/documents/customerAccounts/$(uid)).data.createdAt == request.time
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.authUid == uid
-        && getAfter(/databases/$(database)/documents/customers/$(d.customerId)).data.createdAt == request.time;
+        && portalAfter.customerId == d.customerId
+        && portalAfter.createdBy == uid
+        && portalAfter.createdAt == request.time
+        && customerAfter.authUid == uid
+        && customerAfter.createdAt == request.time;
     }
+
 
     function bootstrapPath(){ return /databases/$(database)/documents/system/bootstrap; }
     function bootstrapStaffPath(){ return /databases/$(database)/documents/staff/$(request.auth.uid); }
