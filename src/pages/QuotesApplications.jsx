@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {addDoc,collection,doc,getDocs,serverTimestamp,updateDoc,writeBatch} from "firebase/firestore";
-import {ArrowRight,Car,CheckCircle2,ClipboardList,GitCompare,Home,Plus,ShieldCheck,X} from "lucide-react";
+import {ArrowRight,Car,CheckCircle2,ClipboardList,GitCompare,HeartPulse,Home,Plus,ShieldCheck,X} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
 
@@ -24,7 +24,7 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
   const customerMap=useMemo(()=>Object.fromEntries(customers.map(c=>[c.id,c])),[customers]);
 
   function calculatedPremium(q){
-    const base=Number(q.basePremium||0);let adjustment=q.product==="auto"?35:q.product==="home"?25:45;
+    const base=Number(q.basePremium||0);let adjustment=q.product==="auto"?35:q.product==="home"?25:q.product==="medical"?60:45;
     if(Number(q.deductible)<=500)adjustment+=30;if(Number(q.deductible)>=2000)adjustment-=15;
     const tier=q.coverageTier==="basic"?.9:q.coverageTier==="premium"?1.25:1;
     return Math.max(25,(base+adjustment)*tier);
@@ -70,7 +70,7 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
     <div className="quotes-help"><strong>Quote workflow</strong><span>1. Create a draft → 2. Complete the application checklist → 3. Submit for underwriting → 4. Review the decision → 5. Issue an approved policy.</span></div>
     <div className="table-card workflow-table"><div className="table-toolbar quotes-toolbar"><div><strong>Application pipeline</strong><span>{visibleQuotes.length} of {quotes.length} quotes</span></div><div className="quotes-filters"><label>Search quotes<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Customer, quote # or asset"/></label><label>Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option>{["draft","submitted","needs_information","approved","conditional_approval","declined","issued"].map(s=><option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}</select></label></div></div>{visibleQuotes.length===0?<div className="empty-state"><ClipboardList size={30}/><h3>No quotes yet.</h3></div>:<div className="quote-list">{visibleQuotes.map(q=><article className="quote-row" key={q.id}>
       <div className="compare-check"><input type="checkbox" checked={compareIds.includes(q.id)} onChange={()=>toggleCompare(q.id)} title="Compare"/></div>
-      <div className="product-icon">{q.product==="home"?<Home size={18}/>:<Car size={18}/>}</div>
+      <div className="product-icon">{q.product==="home"?<Home size={18}/>:q.product==="medical"?<HeartPulse size={18}/>:<Car size={18}/>}</div>
       <button className="quote-main quote-open" onClick={()=>setSelected(q)}><strong>{q.customerName}</strong><span>{q.quoteNumber} • {(q.coverageTier||"standard").toUpperCase()} • {q.assetDescription||"Asset not described"}</span></button>
       <div className="quote-money"><strong>{money(q.monthlyPremium)}/mo</strong><span>{q.underwritingLevel||"unreviewed"}</span></div>
       <span className={"status-pill "+q.status}>{q.status.replaceAll("_"," ")}</span>
@@ -84,10 +84,10 @@ export default function QuotesApplications({staff,initialCustomerId,openNew}){
     </div></div>}
 
     {open&&<div className="modal-backdrop"><form className="modal wide" onSubmit={createQuote}><div className="modal-head"><div><div className="eyebrow">QUOTE BUILDER</div><h2>New insurance quote</h2></div><button type="button" onClick={()=>setOpen(false)}><X/></button></div>
-      <div className="three-col"><label>Customer<select value={form.customerId} onChange={e=>setForm({...form,customerId:e.target.value})} required><option value="">Select customer</option>{customers.map(c=><option key={c.id} value={c.id}>{c.displayName}</option>)}</select></label><label>Product<select value={form.product} onChange={e=>setForm({...form,product:e.target.value,assetType:e.target.value==="home"?"property":"vehicle"})}><option value="auto">Auto</option><option value="home">Home / Property</option><option value="business">Commercial</option></select></label><label>Coverage option<select value={form.coverageTier} onChange={e=>setForm({...form,coverageTier:e.target.value})}><option value="basic">Basic</option><option value="standard">Standard</option><option value="premium">Premium</option></select></label></div>
-      <label>Insured asset<input value={form.assetDescription} onChange={e=>setForm({...form,assetDescription:e.target.value})} required/></label>
+      <div className="three-col"><label>Customer<select value={form.customerId} onChange={e=>setForm({...form,customerId:e.target.value})} required><option value="">Select customer</option>{customers.map(c=><option key={c.id} value={c.id}>{c.displayName}</option>)}</select></label><label>Product<select value={form.product} onChange={e=>setForm({...form,product:e.target.value,assetType:e.target.value==="home"?"property":e.target.value==="medical"?"person":"vehicle",propertyDamageLimit:e.target.value==="medical"?"0":form.propertyDamageLimit})}><option value="auto">Auto</option><option value="home">Home / Property</option><option value="business">Commercial</option><option value="medical">Medical / Health</option></select></label><label>Coverage option<select value={form.coverageTier} onChange={e=>setForm({...form,coverageTier:e.target.value})}><option value="basic">Basic</option><option value="standard">Standard</option><option value="premium">Premium</option></select></label></div>
+      <label>{form.product==="medical"?"Covered individual or plan description":"Insured asset"}<input value={form.assetDescription} onChange={e=>setForm({...form,assetDescription:e.target.value})} required/></label>
       <div className="three-col"><label>Base monthly premium<input type="number" min="1" value={form.basePremium} onChange={e=>setForm({...form,basePremium:e.target.value})}/></label><label>Deductible<select value={form.deductible} onChange={e=>setForm({...form,deductible:e.target.value})}><option value="500">$500</option><option value="1000">$1,000</option><option value="2000">$2,000</option><option value="2500">$2,500</option></select></label><label>Estimated premium<input value={money(calculatedPremium(form))+" / month"} readOnly/></label></div>
-      <div className="two-col"><label>Liability limit<input type="number" value={form.liabilityLimit} onChange={e=>setForm({...form,liabilityLimit:e.target.value})}/></label><label>Property damage limit<input type="number" value={form.propertyDamageLimit} onChange={e=>setForm({...form,propertyDamageLimit:e.target.value})}/></label></div>
+      <div className="two-col"><label>{form.product==="medical"?"Medical benefit limit":"Liability limit"}<input type="number" value={form.liabilityLimit} onChange={e=>setForm({...form,liabilityLimit:e.target.value})}/></label>{form.product!=="medical"&&<label>Property damage limit<input type="number" value={form.propertyDamageLimit} onChange={e=>setForm({...form,propertyDamageLimit:e.target.value})}/></label>}</div>
       <label>Risk / underwriting notes<textarea rows="4" value={form.riskNotes} onChange={e=>setForm({...form,riskNotes:e.target.value})}/></label>
       <div className="premium-preview"><div><span>Monthly premium</span><strong>{money(calculatedPremium(form))}</strong></div><div><span>Six-month premium</span><strong>{money(calculatedPremium(form)*6)}</strong></div></div>
       <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setOpen(false)}>Cancel</button><button className="primary" disabled={saving}>{saving?"Creating…":"Create option"}</button></div>
