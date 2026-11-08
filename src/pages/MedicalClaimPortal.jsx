@@ -17,6 +17,8 @@ export function MedicalClaimPortal({user,customerAccount=null,providerAccount=nu
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
+  const [reply,setReply]=useState({});
+  const [replyBusy,setReplyBusy]=useState("");
   const eligible=useMemo(()=>policies.filter(p=>["active","renewal_pending","cancellation_pending"].includes(p.status)),[policies]);
   const update=(key,value)=>setForm(v=>({...v,[key]:value}));
 
@@ -47,6 +49,20 @@ export function MedicalClaimPortal({user,customerAccount=null,providerAccount=nu
     finally{setLoading(false)}
   }
   useEffect(()=>{refresh()},[user.uid,customerAccount?.customerId,isProvider]);
+
+  async function sendReply(requestId){
+    const message=(reply[requestId]||"").trim();
+    if(message.length<2)return;
+    setReplyBusy(requestId);setError("");setSuccess("");
+    try{
+      await addDoc(collection(db,"medicalClaimResponses"),{
+        requestId,submitterUid:user.uid,message,createdAt:serverTimestamp()
+      });
+      setReply(v=>({...v,[requestId]:""}));
+      setSuccess("Additional information sent to Sterling Mutual for review.");
+    }catch(e){setError(e.message||"Unable to send additional information.")}
+    finally{setReplyBusy("")}
+  }
 
   async function submit(e){
     e.preventDefault();
@@ -108,7 +124,7 @@ export function MedicalClaimPortal({user,customerAccount=null,providerAccount=nu
       </form>
       <section className="table-card medical-history">
         <div className="table-toolbar"><strong>{isProvider?"Practice submissions":"My medical requests"}</strong><button className="secondary compact" onClick={refresh}><RefreshCw size={15}/> Refresh</button></div>
-        {loading?<div className="empty-state compact-empty">Loading requests…</div>:requests.length===0?<div className="empty-state compact-empty">No medical payout requests yet.</div>:<div className="medical-request-list">{requests.map(r=><article key={r.id}><div><strong>{r.invoiceNumber}</strong><span>{r.patientName} · {stamp(r.createdAt)}</span></div><div><b>{money(r.amount)}</b><span className={"status-pill "+r.status}>{String(r.status||"submitted").replaceAll("_"," ")}</span></div><small>{r.providerName} · {r.policyNumber||"Policy matching pending"}{r.claimNumber?" · Claim "+r.claimNumber:""}</small>{r.reviewNote&&<p>{r.reviewNote}</p>}</article>)}</div>}
+        {loading?<div className="empty-state compact-empty">Loading requests…</div>:requests.length===0?<div className="empty-state compact-empty">No medical payout requests yet.</div>:<div className="medical-request-list">{requests.map(r=><article key={r.id}><div><strong>{r.invoiceNumber}</strong><span>{r.patientName} · {stamp(r.createdAt)}</span></div><div><b>{money(r.amount)}</b><span className={"status-pill "+r.status}>{String(r.status||"submitted").replaceAll("_"," ")}</span></div><small>{r.providerName} · {r.policyNumber||"Policy matching pending"}{r.claimNumber?" · Claim "+r.claimNumber:""}</small>{r.reviewNote&&<p>{r.reviewNote}</p>}{r.status==="needs_info"&&<div className="medical-response"><textarea rows={3} maxLength={1500} value={reply[r.id]||""} onChange={e=>setReply(v=>({...v,[r.id]:e.target.value}))} placeholder="Reply to the claims reviewer with the requested information."/><button className="secondary compact" type="button" disabled={replyBusy===r.id||(reply[r.id]||"").trim().length<2} onClick={()=>sendReply(r.id)}>{replyBusy===r.id?"Sending…":"Send more information"}</button></div>}</article>)}</div>}
       </section>
     </div>
   </div>;
