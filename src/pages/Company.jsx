@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {addDoc,collection,doc,getDocs,serverTimestamp,setDoc,updateDoc} from "firebase/firestore";
+import {addDoc,collection,doc,getDocs,serverTimestamp,setDoc,updateDoc,writeBatch} from "firebase/firestore";
 import {Activity,Archive,BarChart3,Building2,CheckCircle2,FileText,KeyRound,Landmark,ShieldCheck,Users,X} from "lucide-react";
 import {db} from "../firebase";
 import {resolveApproval} from "../workflows/approvals";
@@ -111,10 +111,15 @@ function Analytics({policies,claims,tx,staffList}){
 
 function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,currentStaff}){
   const [pendingRoles,setPendingRoles]=useState({});
+  const [providerAccounts,setProviderAccounts]=useState([]);
+  const [providerError,setProviderError]=useState("");
+  useEffect(()=>{if(canManage)getDocs(collection(db,"providerAccounts")).then(s=>setProviderAccounts(s.docs.map(d=>({id:d.id,...d.data()})))).catch(e=>setProviderError(e.message))},[canManage,accounts]);
   const [permissionStaff,setPermissionStaff]=useState(null);
   const [custom,setCustom]=useState([]);
   const staffIds=new Set(staffList.map(s=>s.id));
-  const pending=accounts.filter(a=>!staffIds.has(a.id));
+  const providerIds=new Set(providerAccounts.map(p=>p.id));
+  const providerPending=accounts.filter(a=>a.accountType==="provider"&&!providerIds.has(a.id));
+  const pending=accounts.filter(a=>!staffIds.has(a.id)&&a.accountType!=="provider"&&a.accountType!=="customer");
 
   function nextEmployeeId(){
     const nums=staffList.map(s=>Number(String(s.employeeId||"").replace(/\D/g,""))).filter(Number.isFinite);
@@ -132,6 +137,35 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
     });
     await updateDoc(doc(db,"accounts",account.id),{accessStatus:"staff",assignedRole:role,assignedAt:serverTimestamp(),assignedBy:currentStaff.id});
     await logAdmin("Pending account activated",{accountId:account.id,role});await reload();
+  }
+
+  async function approveProvider(account){
+    if(!canManage)return;
+    const name=(account.organizationName||"").trim();
+    if(name.length<2){setProviderError("A medical practice name is required before approval.");return}
+    if(!window.confirm("Confirm that Sterling Mutual has independently verified the provider affiliation for "+name+". This grants access to submit medical payout requests."))return;
+    setProviderError("");
+    try{
+      const batch=writeBatch(db);
+      batch.set(doc(db,"providerAccounts",account.id),{
+        authUid:account.id,organizationName:name,status:"active",
+        verifiedBy:currentStaff.id,verifiedAt:serverTimestamp()
+      });
+      batch.update(doc(db,"accounts",account.id),{
+        accessStatus:"provider",approvedAt:serverTimestamp(),approvedBy:currentStaff.id
+      });
+      await batch.commit();
+      await logAdmin("Medical provider access approved",{accountId:account.id,organizationName:name});
+      await reload();
+    }catch(e){setProviderError(e.message||"Could not approve provider")}
+  }
+  async function updateProviderStatus(provider,status){
+    if(!canManage)return;
+    try{
+      await updateDoc(doc(db,"providerAccounts",provider.id),{status,updatedAt:serverTimestamp(),updatedBy:currentStaff.id});
+      await logAdmin("Provider status changed",{providerId:provider.id,status});
+      await reload();
+    }catch(e){setProviderError(e.message||"Could not update provider")}
   }
 
   async function setRole(s,role){
@@ -162,6 +196,14 @@ function Staff({staffList,accounts,canManage,canPermissions,logAdmin,reload,curr
   }
 
   return <div className="company-section">
+    <div className="table-card"><div className="table-toolbar"><strong>Medical provider verification</strong><span>{providerPending.length} applications</span></div>
+      <div className="medical-provider-admin-note">Medical providers use a separate, restricted portal. Verify their practice affiliation before approving access; approval does not grant employee permissions.</div>
+      {providerError&&<p className="medical-error" role="alert">{providerError}</p>}
+      <div className="staff-list">{providerPending.map(a=><div className="staff-row staff-admin-row" key={a.id}><div className="avatar">MP</div><div><strong>{a.organizationName||"Practice name missing"}</strong><span>{a.displayName} · {a.email}</span></div><button className="primary compact" disabled={!canManage} onClick={()=>approveProvider(a)}>Verify & approve provider</button></div>)}
+        {providerAccounts.map(p=><div className="staff-row staff-admin-row" key={p.id}><div className="avatar">MP</div><div><strong>{p.organizationName}</strong><span>Provider portal · {p.status}</span></div><select value={p.status} disabled={!canManage} onChange={e=>updateProviderStatus(p,e.target.value)}><option value="active">Active</option><option value="suspended">Suspended</option></select></div>)}
+        {providerPending.length===0&&providerAccounts.length===0&&<div className="empty-state compact-empty">No provider accounts or approval requests.</div>}
+      </div>
+    </div>
     <div className="table-card"><div className="table-toolbar"><strong>Pending accounts</strong><span>{pending.length} awaiting assignment</span></div>
       {pending.length===0?<div className="empty-state"><Users size={28}/><h3>No pending accounts.</h3><p>New registrations appear here until staff access is assigned.</p></div>:<div className="staff-list">{pending.map(a=><div className="staff-row staff-admin-row pending-account-row" key={a.id}><div className="avatar">{(a.displayName||a.email||"?").split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase()}</div><div><strong>{a.displayName||"Unnamed account"}</strong><span>{a.email} • No staff access</span></div><select value={pendingRoles[a.id]||"agent"} disabled={!canManage} onChange={e=>setPendingRoles(v=>({...v,[a.id]:e.target.value}))}>{Object.entries(ROLE_PRESETS).filter(([key])=>key!=="founder").map(([key,p])=><option key={key} value={key}>{p.label}</option>)}</select><button className="primary compact" disabled={!canManage} onClick={()=>activateAccount(a)}>Assign staff access</button></div>)}</div>}
     </div>
