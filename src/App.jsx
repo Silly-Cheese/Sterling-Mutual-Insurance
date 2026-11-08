@@ -32,7 +32,7 @@ const navGroups=[
 
 function Login({onRegistered}){
   const [mode,setMode]=useState("signin");
-  const [form,setForm]=useState({displayName:"",email:"",password:"",accountType:"staff",organizationName:""});
+  const [form,setForm]=useState({displayName:"",email:"",password:"",accountType:"customer",organizationName:""});
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
   const update=k=>e=>setForm(v=>({...v,[k]:e.target.value}));
 
@@ -77,7 +77,7 @@ function Login({onRegistered}){
       <h1>{mode==="signin"?"Welcome back.":"Create your account."}</h1>
       <p>{mode==="signin"?"Sign in with your email and password. No email verification link is required.":"Choose the appropriate portal. No email verification message or link is required after registration. Customers create their own profiles immediately; provider approval and staff authorization are separate access controls."}</p>
       <form onSubmit={submit} className="form-stack">
-        {mode==="signup"&&<><label>Account type<select value={form.accountType} onChange={update("accountType")}><option value="staff">Sterling staff (requires assignment)</option><option value="customer">Customer (create your own profile)</option><option value="provider">Medical provider (requires staff approval)</option></select></label><label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>{form.accountType==="provider"&&<label>Provider / medical practice name<input maxLength={160} value={form.organizationName} onChange={update("organizationName")} required placeholder="Registered provider or facility name"/></label>}</>}
+        {mode==="signup"&&<><label>Account type<select value={form.accountType} onChange={update("accountType")}><option value="customer">Customer — create my own profile</option><option value="provider">Medical provider — staff approval required</option><option value="staff">Sterling employee — staff assignment required</option></select></label><label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>{form.accountType==="provider"&&<label>Provider / medical practice name<input maxLength={160} value={form.organizationName} onChange={update("organizationName")} required placeholder="Registered provider or facility name"/></label>}</>}
         <label>Email (used to sign in; no verification link required)<input type="email" value={form.email} onChange={update("email")} required/></label>
         <label>Password<input type="password" minLength="8" value={form.password} onChange={update("password")} required/></label>
         {error&&<div className="error-box">{error}</div>}
