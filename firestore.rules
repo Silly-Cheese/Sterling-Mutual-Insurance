@@ -392,7 +392,16 @@ service cloud.firestore {
     match /customers/{customerId} {
       allow read: if hasPermission("customer.read") || ownsCustomer(customerId);
       allow create: if hasPermission("customer.create") || canCreateOwnCustomerRecord(customerId);
-      allow update: if hasPermission("customer.update");
+      // Customers may correct contact phone only. Ownership, status and coverage
+      // remain staff-controlled.
+      allow update: if hasPermission("customer.update")
+                    || (
+                      ownsCustomer(customerId)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["phone","updatedAt"])
+                      && request.resource.data.phone is string
+                      && request.resource.data.phone.size() <= 30
+                      && request.resource.data.updatedAt == request.time
+                    );
       allow delete: if false;
     }
 
