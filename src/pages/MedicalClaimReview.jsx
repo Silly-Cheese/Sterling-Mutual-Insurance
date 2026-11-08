@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from "react";
-import {collection,doc,getDocs,runTransaction,serverTimestamp,updateDoc} from "firebase/firestore";
+import {collection,doc,getDocs,query,where,runTransaction,serverTimestamp,updateDoc} from "firebase/firestore";
 import {ClipboardCheck,RefreshCw,ShieldCheck} from "lucide-react";
 import {db} from "../firebase";
 import {can,PERMISSIONS} from "../permissions";
@@ -12,6 +12,7 @@ export default function MedicalClaimReview({staff,onNavigate}){
   const [requests,setRequests]=useState([]),[policies,setPolicies]=useState([]);
   const [selected,setSelected]=useState(null),[policyId,setPolicyId]=useState("");
   const [note,setNote]=useState("");
+  const [responses,setResponses]=useState([]);
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[loading,setLoading]=useState(true);
   const canReview=can(staff,PERMISSIONS.CLAIM_UPDATE)||can(staff,PERMISSIONS.CLAIM_CREATE_FOR_CUSTOMER);
   const canConvert=can(staff,PERMISSIONS.CLAIM_CREATE_FOR_CUSTOMER);
@@ -27,7 +28,13 @@ export default function MedicalClaimReview({staff,onNavigate}){
     finally{setLoading(false)}
   }
   useEffect(()=>{load()},[]);
-  function open(r){setSelected(r);setPolicyId(r.policyId||"");setNote(r.reviewNote||"");setError("")}
+  async function open(r){
+    setSelected(r);setPolicyId(r.policyId||"");setNote(r.reviewNote||"");setResponses([]);setError("");
+    try{
+      const snap=await getDocs(query(collection(db,"medicalClaimResponses"),where("requestId","==",r.id)));
+      setResponses(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0)));
+    }catch(e){setError("Could not load additional information: "+e.message)}
+  }
   async function mark(status){
     if(!selected||!canReview)return;
     setBusy(true);setError("");
@@ -80,7 +87,7 @@ export default function MedicalClaimReview({staff,onNavigate}){
     <div className="metric-grid"><article className="metric-card"><div className="metric-label">Awaiting review</div><div className="metric-value">{requests.filter(r=>r.status==="submitted").length}</div></article><article className="metric-card"><div className="metric-label">Needs information</div><div className="metric-value">{requests.filter(r=>r.status==="needs_info").length}</div></article><article className="metric-card"><div className="metric-label">Converted to claims</div><div className="metric-value">{requests.filter(r=>r.status==="converted").length}</div></article></div>
     {error&&<div className="medical-error" role="alert">{error}</div>}
     <div className="table-card"><div className="table-toolbar"><strong>Submitted medical bills</strong><span>{requests.length} requests</span></div>{loading?<div className="empty-state compact-empty">Loading…</div>:requests.length===0?<div className="empty-state compact-empty">No requests have been submitted.</div>:<div className="medical-request-list">{requests.map(r=><button key={r.id} className={"medical-intake-row "+(selected?.id===r.id?"selected":"")} onClick={()=>open(r)}><ClipboardCheck size={19}/><span><strong>{r.patientName} • {r.invoiceNumber}</strong><small>{r.providerName} · {r.submitterRole} · {r.policyNumber||"Coverage match needed"}</small></span><b>{money(r.amount)}</b><span className={"status-pill "+r.status}>{displayStatus(r.status)}</span></button>)}</div>}</div>
-    {selected&&<div className="panel medical-review"><div className="eyebrow">SUBMISSION REVIEW</div><h2>{selected.patientName} · {selected.invoiceNumber}</h2><div className="medical-facts"><div><span>Provider</span><strong>{selected.providerName}</strong></div><div><span>Amount requested</span><strong>{money(selected.amount)}</strong></div><div><span>Service date</span><strong>{selected.serviceDate}</strong></div><div><span>Category</span><strong>{selected.expenseCategory}</strong></div><div><span>Source</span><strong>{selected.sourceSystem}</strong></div><div><span>Current status</span><strong>{displayStatus(selected.status)}</strong></div></div>{selected.notes&&<p>{selected.notes}</p>}
+    {selected&&<div className="panel medical-review"><div className="eyebrow">SUBMISSION REVIEW</div><h2>{selected.patientName} · {selected.invoiceNumber}</h2><div className="medical-facts"><div><span>Provider</span><strong>{selected.providerName}</strong></div><div><span>Amount requested</span><strong>{money(selected.amount)}</strong></div><div><span>Service date</span><strong>{selected.serviceDate}</strong></div><div><span>Category</span><strong>{selected.expenseCategory}</strong></div><div><span>Source</span><strong>{selected.sourceSystem}</strong></div><div><span>Current status</span><strong>{displayStatus(selected.status)}</strong></div></div>{selected.notes&&<p>{selected.notes}</p>}{responses.length>0&&<div className="medical-responses"><strong>Additional information from the submitter</strong>{responses.map(x=><p key={x.id}>{x.message}<small>{x.createdAt?.toDate?.()?.toLocaleString()||""}</small></p>)}</div>}
       {selected.claimId&&<p><ShieldCheck size={16}/> Official claim: <strong>{selected.claimNumber||selected.claimId}</strong> — continue payout processing in the Claims workspace.</p>}
       {selected.status!=="converted"&&selected.status!=="declined"&&canReview&&<>
         <label>Link confirmed Sterling policy<select value={policyId} onChange={e=>setPolicyId(e.target.value)}><option value="">Choose after verifying patient and coverage</option>{policies.filter(p=>["active","renewal_pending","cancellation_pending"].includes(p.status)&&(!selected.customerId||p.customerId===selected.customerId)).map(p=><option key={p.id} value={p.id}>{p.policyNumber} — {p.customerName}</option>)}</select></label>
