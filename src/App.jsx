@@ -15,6 +15,7 @@ import Billing from "./pages/Billing";
 import Cancellations from "./pages/Cancellations";
 import Company from "./pages/Company";
 import CustomerPortal from "./pages/CustomerPortal";
+import CustomerOnboarding from "./pages/CustomerOnboarding";
 import ProviderPortal from "./pages/MedicalClaimPortal";
 import MedicalClaimReview from "./pages/MedicalClaimReview";
 import CustomerWorkspace from "./pages/CustomerWorkspace";
@@ -29,7 +30,7 @@ const navGroups=[
   ["MANAGEMENT",[["Company",Building2,null]]]
 ];
 
-function Login(){
+function Login({onRegistered}){
   const [mode,setMode]=useState("signin");
   const [form,setForm]=useState({displayName:"",email:"",password:"",accountType:"staff",organizationName:""});
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
@@ -56,6 +57,7 @@ function Login(){
           organizationName:form.accountType==="provider"?form.organizationName.trim():"",
           createdAt:serverTimestamp()
         });
+        await onRegistered(credential.user);
       }
     }catch(err){
       const code=err?.code||"";
@@ -73,9 +75,9 @@ function Login(){
       <div className="auth-switch"><button className={mode==="signin"?"active":""} onClick={()=>{setMode("signin");setError("")}}>Sign in</button><button className={mode==="signup"?"active":""} onClick={()=>{setMode("signup");setError("")}}>Create account</button></div>
       <div className="eyebrow">{mode==="signin"?"SECURE STAFF ACCESS":"STERLING MUTUAL ACCOUNT"}</div>
       <h1>{mode==="signin"?"Welcome back.":"Create your account."}</h1>
-      <p>{mode==="signin"?"Sign in with your email and password. No email verification link is required.":"Choose the appropriate portal. No email verification message or link is required after registration. Customer account linking, provider approval, and staff authorization are separate access controls."}</p>
+      <p>{mode==="signin"?"Sign in with your email and password. No email verification link is required.":"Choose the appropriate portal. No email verification message or link is required after registration. Customers create their own profiles immediately; provider approval and staff authorization are separate access controls."}</p>
       <form onSubmit={submit} className="form-stack">
-        {mode==="signup"&&<><label>Account type<select value={form.accountType} onChange={update("accountType")}><option value="staff">Sterling staff (requires assignment)</option><option value="customer">Customer (requires policy/account linking)</option><option value="provider">Medical provider (requires staff approval)</option></select></label><label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>{form.accountType==="provider"&&<label>Provider / medical practice name<input maxLength={160} value={form.organizationName} onChange={update("organizationName")} required placeholder="Registered provider or facility name"/></label>}</>}
+        {mode==="signup"&&<><label>Account type<select value={form.accountType} onChange={update("accountType")}><option value="staff">Sterling staff (requires assignment)</option><option value="customer">Customer (create your own profile)</option><option value="provider">Medical provider (requires staff approval)</option></select></label><label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>{form.accountType==="provider"&&<label>Provider / medical practice name<input maxLength={160} value={form.organizationName} onChange={update("organizationName")} required placeholder="Registered provider or facility name"/></label>}</>}
         <label>Email (used to sign in; no verification link required)<input type="email" value={form.email} onChange={update("email")} required/></label>
         <label>Password<input type="password" minLength="8" value={form.password} onChange={update("password")} required/></label>
         {error&&<div className="error-box">{error}</div>}
@@ -92,6 +94,7 @@ export default function App(){
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
   const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[]}),[recentCustomers,setRecentCustomers]=useState([]),[favoriteCustomers,setFavoriteCustomers]=useState([]);
   const searchRef=useRef(null);
+  const refreshSequence=useRef(0);
   const refreshShortcuts=()=>{
     try{
       setRecentCustomers(JSON.parse(localStorage.getItem("smi-recent-customers")||"[]"));
@@ -134,6 +137,7 @@ export default function App(){
   },[staff]);
 
   async function refreshAccess(u){
+    const sequence=++refreshSequence.current;
     if(!u){setStaff(null);setAccount(null);setCustomerAccount(null);setProviderAccount(null);setBootstrapState(null);return}
     const [staffSnap,accountSnap,customerAccountSnap,providerAccountSnap,bootSnap]=await Promise.all([
       getDoc(doc(db,"staff",u.uid)),
@@ -142,6 +146,7 @@ export default function App(){
       getDoc(doc(db,"providerAccounts",u.uid)),
       getDoc(doc(db,"system","bootstrap"))
     ]);
+    if(sequence!==refreshSequence.current)return;
     setStaff(staffSnap.exists()?{id:staffSnap.id,...staffSnap.data()}:null);
     setAccount(accountSnap.exists()?{id:accountSnap.id,...accountSnap.data()}:null);
     setCustomerAccount(customerAccountSnap.exists()?{id:customerAccountSnap.id,...customerAccountSnap.data()}:null);
@@ -160,8 +165,9 @@ export default function App(){
   const initials=useMemo(()=>staff?.displayName?.split(" ").map(x=>x[0]).slice(0,2).join("")||"SM",[staff]);
 
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
-  if(!user)return <Login/>;
+  if(!user)return <Login onRegistered={refreshAccess}/>;
   if(customerAccount&&!staff)return <CustomerPortal user={user} customerAccount={customerAccount} onSignOut={()=>signOut(auth)}/>;
+  if(account?.accountType==="customer"&&account.accessStatus==="pending"&&!staff)return <CustomerOnboarding user={user} account={account} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
   if(providerAccount?.status==="active"&&!staff)return <ProviderPortal user={user} providerAccount={providerAccount} onSignOut={()=>signOut(auth)}/>;
   if(!staff&&!bootstrapState&&!account&&!customerAccount)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
   if(!staff)return <div className="auth-shell"><div className="auth-card pending-card">
