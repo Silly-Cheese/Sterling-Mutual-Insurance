@@ -248,6 +248,47 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Append-only follow-up evidence; never lets a submitter change a decision or amount.
+    match /medicalClaimResponses/{responseId} {
+      allow read: if hasPermission("claim.read")
+                  || hasPermission("claim.createForCustomer")
+                  || (
+                    signedIn()
+                    && resource.data.submitterUid == request.auth.uid
+                    && exists(/databases/$(database)/documents/medicalClaimRequests/$(resource.data.requestId))
+                    && (
+                      (
+                        get(/databases/$(database)/documents/medicalClaimRequests/$(resource.data.requestId)).data.submitterRole == "customer"
+                        && ownsCustomer(get(/databases/$(database)/documents/medicalClaimRequests/$(resource.data.requestId)).data.customerId)
+                      )
+                      || isApprovedMedicalProvider()
+                    )
+                  );
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasOnly(["requestId","submitterUid","message","createdAt"])
+                    && request.resource.data.keys().hasAll(["requestId","submitterUid","message","createdAt"])
+                    && request.resource.data.submitterUid == request.auth.uid
+                    && request.resource.data.requestId is string
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() >= 2
+                    && request.resource.data.message.size() <= 1500
+                    && request.resource.data.createdAt == request.time
+                    && exists(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId))
+                    && get(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId)).data.submitterUid == request.auth.uid
+                    && get(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId)).data.status == "needs_info"
+                    && (
+                      (
+                        get(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId)).data.submitterRole == "customer"
+                        && ownsCustomer(get(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId)).data.customerId)
+                      )
+                      || (
+                        get(/databases/$(database)/documents/medicalClaimRequests/$(request.resource.data.requestId)).data.submitterRole == "provider"
+                        && isApprovedMedicalProvider()
+                      )
+                    );
+      allow update, delete: if false;
+    }
+
     match /walkIns/{walkInId} {
       allow read: if hasPermission("walkin.read");
       allow create: if hasPermission("walkin.create")
