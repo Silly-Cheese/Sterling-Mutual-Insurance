@@ -15,6 +15,8 @@ import Billing from "./pages/Billing";
 import Cancellations from "./pages/Cancellations";
 import Company from "./pages/Company";
 import CustomerPortal from "./pages/CustomerPortal";
+import ProviderPortal from "./pages/MedicalClaimPortal";
+import MedicalClaimReview from "./pages/MedicalClaimReview";
 import CustomerWorkspace from "./pages/CustomerWorkspace";
 import Appointments from "./pages/Appointments";
 import MyWork from "./pages/MyWork";
@@ -23,13 +25,13 @@ import {can,PERMISSIONS} from "./permissions";
 const navGroups=[
   ["WORK",[["Dashboard",LayoutDashboard,null],["My Work",Bell,null]]],
   ["FRONT OFFICE",[["Appointments",CalendarDays,PERMISSIONS.APPOINTMENT_READ],["Walk-ins",UsersRound,PERMISSIONS.WALKIN_READ],["Customers",Users,PERMISSIONS.CUSTOMER_READ],["Quotes & Applications",ClipboardList,PERMISSIONS.QUOTE_READ]]],
-  ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Cancellations",ShieldCheck,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
+  ["COVERAGE & SERVICE",[["Policies",FileCheck2,PERMISSIONS.POLICY_READ],["Cancellations",ShieldCheck,PERMISSIONS.POLICY_READ],["Claims",ShieldCheck,PERMISSIONS.CLAIM_READ],["Medical Payouts",ShieldCheck,PERMISSIONS.CLAIM_READ],["SIU",ShieldCheck,PERMISSIONS.SIU_READ],["Billing",WalletCards,PERMISSIONS.BILLING_READ]]],
   ["MANAGEMENT",[["Company",Building2,null]]]
 ];
 
 function Login(){
   const [mode,setMode]=useState("signin");
-  const [form,setForm]=useState({displayName:"",email:"",password:""});
+  const [form,setForm]=useState({displayName:"",email:"",password:"",accountType:"staff",organizationName:""});
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
   const update=k=>e=>setForm(v=>({...v,[k]:e.target.value}));
 
@@ -50,7 +52,8 @@ function Login(){
           authUid:credential.user.uid,
           displayName:form.displayName.trim(),
           email:form.email.trim().toLowerCase(),
-          accessStatus:"pending",
+          accessStatus:"pending",accountType:form.accountType,
+          organizationName:form.accountType==="provider"?form.organizationName.trim():"",
           createdAt:serverTimestamp()
         });
       }
@@ -70,9 +73,9 @@ function Login(){
       <div className="auth-switch"><button className={mode==="signin"?"active":""} onClick={()=>{setMode("signin");setError("")}}>Sign in</button><button className={mode==="signup"?"active":""} onClick={()=>{setMode("signup");setError("")}}>Create account</button></div>
       <div className="eyebrow">{mode==="signin"?"SECURE STAFF ACCESS":"STERLING MUTUAL ACCOUNT"}</div>
       <h1>{mode==="signin"?"Welcome back.":"Create your account."}</h1>
-      <p>{mode==="signin"?"Sign in to the Sterling Mutual operations platform.":"Registration does not grant staff access. An authorized administrator must assign your role or permissions before you can use company systems."}</p>
+      <p>{mode==="signin"?"Sign in to Sterling Mutual staff, customer, or approved provider access.":"Choose the appropriate portal. New accounts do not automatically receive staff, customer, or provider access; authorization and verification are required."}</p>
       <form onSubmit={submit} className="form-stack">
-        {mode==="signup"&&<label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>}
+        {mode==="signup"&&<><label>Account type<select value={form.accountType} onChange={update("accountType")}><option value="staff">Sterling staff (requires assignment)</option><option value="customer">Customer (requires policy/account linking)</option><option value="provider">Medical provider (requires verification)</option></select></label><label>Full name<input value={form.displayName} onChange={update("displayName")} required/></label>{form.accountType==="provider"&&<label>Provider / medical practice name<input maxLength={160} value={form.organizationName} onChange={update("organizationName")} required placeholder="Registered provider or facility name"/></label>}</>}
         <label>Email<input type="email" value={form.email} onChange={update("email")} required/></label>
         <label>Password<input type="password" minLength="8" value={form.password} onChange={update("password")} required/></label>
         {error&&<div className="error-box">{error}</div>}
@@ -85,7 +88,7 @@ function Login(){
 }
 
 export default function App(){
-  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
+  const [user,setUser]=useState(null),[staff,setStaff]=useState(null),[account,setAccount]=useState(null),[customerAccount,setCustomerAccount]=useState(null),[providerAccount,setProviderAccount]=useState(null),[bootstrapState,setBootstrapState]=useState(null),[loading,setLoading]=useState(true);
   const [page,setPage]=useState("Dashboard"),[pageContext,setPageContext]=useState(null),[mobileOpen,setMobileOpen]=useState(false);
   const [finder,setFinder]=useState(""),[newOpen,setNewOpen]=useState(false),[notifOpen,setNotifOpen]=useState(false),[searchRecords,setSearchRecords]=useState([]),[opsData,setOpsData]=useState({walkIns:[],quotes:[],claims:[],policies:[],serviceRequests:[],approvals:[],invoices:[],cancellations:[]}),[recentCustomers,setRecentCustomers]=useState([]),[favoriteCustomers,setFavoriteCustomers]=useState([]);
   const searchRef=useRef(null);
@@ -131,23 +134,25 @@ export default function App(){
   },[staff]);
 
   async function refreshAccess(u){
-    if(!u){setStaff(null);setAccount(null);setCustomerAccount(null);setBootstrapState(null);return}
-    const [staffSnap,accountSnap,customerAccountSnap,bootSnap]=await Promise.all([
+    if(!u){setStaff(null);setAccount(null);setCustomerAccount(null);setProviderAccount(null);setBootstrapState(null);return}
+    const [staffSnap,accountSnap,customerAccountSnap,providerAccountSnap,bootSnap]=await Promise.all([
       getDoc(doc(db,"staff",u.uid)),
       getDoc(doc(db,"accounts",u.uid)),
       getDoc(doc(db,"customerAccounts",u.uid)),
+      getDoc(doc(db,"providerAccounts",u.uid)),
       getDoc(doc(db,"system","bootstrap"))
     ]);
     setStaff(staffSnap.exists()?{id:staffSnap.id,...staffSnap.data()}:null);
     setAccount(accountSnap.exists()?{id:accountSnap.id,...accountSnap.data()}:null);
     setCustomerAccount(customerAccountSnap.exists()?{id:customerAccountSnap.id,...customerAccountSnap.data()}:null);
+    setProviderAccount(providerAccountSnap.exists()?{id:providerAccountSnap.id,...providerAccountSnap.data()}:null);
     setBootstrapState(bootSnap.exists()?bootSnap.data():null);
   }
 
   useEffect(()=>{refreshShortcuts()},[]);
 
   useEffect(()=>onAuthStateChanged(auth,async u=>{
-    setUser(u); setStaff(null); setAccount(null); setCustomerAccount(null); setBootstrapState(null);
+    setUser(u); setStaff(null); setAccount(null); setCustomerAccount(null); setProviderAccount(null); setBootstrapState(null);
     if(u)await refreshAccess(u);
     setLoading(false);
   }),[]);
@@ -157,14 +162,15 @@ export default function App(){
   if(loading)return <div className="splash"><div className="brand-mark large">SM</div><span>Loading Sterling Mutual…</span></div>;
   if(!user)return <Login/>;
   if(customerAccount&&!staff)return <CustomerPortal user={user} customerAccount={customerAccount} onSignOut={()=>signOut(auth)}/>;
+  if(providerAccount?.status==="active"&&!staff)return <ProviderPortal user={user} providerAccount={providerAccount} onSignOut={()=>signOut(auth)}/>;
   if(!staff&&!bootstrapState&&!account&&!customerAccount)return <Bootstrap user={user} onComplete={()=>refreshAccess(user)} onSignOut={()=>signOut(auth)}/>;
   if(!staff)return <div className="auth-shell"><div className="auth-card pending-card">
     <div className="pending-icon"><ShieldCheck size={28}/></div>
     <div className="eyebrow">ACCOUNT CREATED</div>
-    <h1>Staff access pending.</h1>
-    <p>Your Sterling Mutual account is active, but it currently has no staff role or operational permissions.</p>
-    <div className="pending-details"><div><span>Account</span><strong>{account?.displayName||user.displayName||user.email}</strong></div><div><span>Status</span><strong>Awaiting staff assignment</strong></div></div>
-    <p className="pending-help">A Sterling Mutual administrator must assign your role before company data becomes available.</p>
+    <h1>{account?.accountType==="provider"?"Provider verification pending.":account?.accountType==="customer"?"Customer access pending.":"Staff access pending."}</h1>
+    <p>{account?.accountType==="provider"?"A Sterling administrator must verify and approve your medical practice before you can submit claims.":account?.accountType==="customer"?"A Sterling representative must link your login to your customer record before your customer portal is available.":"Your Sterling account has no staff role or operational permissions yet."}</p>
+    <div className="pending-details"><div><span>Account</span><strong>{account?.displayName||user.displayName||user.email}</strong></div><div><span>Status</span><strong>{account?.accountType==="provider"?"Awaiting provider approval":account?.accountType==="customer"?"Awaiting customer linking":"Awaiting staff assignment"}</strong></div></div>
+    <p className="pending-help">Account and insurance records remain protected until Sterling Mutual confirms your access.</p>
     <button className="primary" onClick={()=>signOut(auth)}>Sign out</button>
   </div></div>;
 
@@ -211,10 +217,11 @@ export default function App(){
       {page==="Quotes & Applications"&&<QuotesApplications staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
       {page==="Policies"&&<Policies staff={staff} onNavigate={navigate} initialCustomerId={pageContext?.customerId}/>}      {page==="Cancellations"&&<Cancellations staff={staff} onNavigate={navigate}/>}
       {page==="Claims"&&<Claims staff={staff} initialCustomerId={pageContext?.customerId} openNew={pageContext?.openNew}/>}
+      {page==="Medical Payouts"&&<MedicalClaimReview staff={staff} onNavigate={navigate}/>}
       {page==="SIU"&&<SIU staff={staff} onNavigate={navigate}/>}
       {page==="Billing"&&<Billing staff={staff} initialPolicyId={pageContext?.policyId}/>}
       {page==="Company"&&<Company staff={staff} onNavigate={navigate}/>}
-      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING SOON</div><h1>{page}</h1><p>This workspace is reserved for a future Sterling Mutual module.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions, and layout are already in place.</p></div></section>}
+      {!["Dashboard","My Work","Appointments","Walk-ins","Customers","Customer Workspace","Quotes & Applications","Policies","Cancellations","Claims","Medical Payouts","SIU","Billing","Company"].includes(page)&&<section className="content"><div className="page-heading"><div><div className="eyebrow">COMING SOON</div><h1>{page}</h1><p>This workspace is reserved for a future Sterling Mutual module.</p></div></div><div className="empty-state"><ShieldCheck size={30}/><h3>{page} is ready for its engine.</h3><p>The foundation, permissions, and layout are already in place.</p></div></section>}
       </div>
     </main>
   </div>
