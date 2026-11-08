@@ -1,0 +1,45 @@
+/* Self-service customer onboarding — Sterling Mutual */
+.customer-onboarding-shell{min-height:100vh;background:radial-gradient(ellipse at 10% 8%,#255046 0%,#142e29 45%,#101a1b 100%);color:#1c2b27;overflow:auto}
+.customer-onboarding-top{max-width:1300px;margin:0 auto;padding:27px 35px;display:flex;justify-content:space-between;align-items:center;gap:20px}
+.customer-onboarding-top .brand-lockup{color:#f5f8f4}
+.customer-onboarding-top .brand-lockup span{color:#b0c8bd}
+.customer-onboarding-top .brand-mark{background:#e6ebe3;color:#16392f}
+.customer-onboarding-signout{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid #a2b8ae66;border-radius:11px;background:#ffffff10;color:#f1f6f2;font-weight:600}
+.customer-onboarding-signout:hover{background:#ffffff20}
+.customer-onboarding-main{max-width:1200px;min-height:calc(100vh - 104px);margin:0 auto;display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1fr);align-items:center;gap:clamp(28px,6vw,86px);padding:35px 35px 85px}
+.customer-onboarding-hero{color:#f1f6f2;min-width:0}
+.customer-onboarding-icon{display:grid;place-items:center;width:64px;height:64px;margin-bottom:28px;background:#dbece1;color:#225946;border-radius:18px}
+.customer-onboarding-hero .eyebrow{color:#b5cebd;letter-spacing:.14em}
+.customer-onboarding-hero h1{font-family:"Libre Caslon Display",Georgia,serif;font-size:clamp(39px,5vw,67px);line-height:1.08;font-weight:400;margin:16px 0 22px;letter-spacing:-.02em}
+.customer-onboarding-hero>p{max-width:530px;color:#c4d7ce;font-size:16px;line-height:1.8}
+.customer-onboarding-steps{margin:31px 0 42px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.customer-onboarding-steps>span{display:inline-flex;align-items:center;gap:7px;border:1px solid #a8baaf45;color:#b1c4ba;border-radius:30px;padding:9px 12px;font-size:12px;font-weight:700}
+.customer-onboarding-steps>span.complete{background:#e6f2e8;color:#255d44;border-color:#e6f2e8}
+.customer-onboarding-steps>span.current{background:#ffffff16;color:#fff;border-color:#c4d7c78a}
+.customer-step-number{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;border:1px solid currentColor}
+.customer-onboarding-benefits{display:grid;gap:20px;padding-top:20px;border-top:1px solid #c7d7cf32}
+.customer-onboarding-benefits>div{display:flex;align-items:flex-start;gap:12px;color:#c8dacf;font-size:13px;line-height:1.7}
+.customer-onboarding-benefits svg{color:#d4c39e;flex-shrink:0;margin-top:2px}
+.customer-onboarding-benefits strong{display:block;color:#f6faf6}
+.customer-onboarding-card{display:grid;gap:20px;border-radius:25px;background:#fff;padding:clamp(25px,4.4vw,51px);box-shadow:0 35px 100px #0005;min-width:0}
+.customer-onboarding-card .eyebrow{color:#4a7a68}
+.customer-onboarding-card h2{font-family:"Libre Caslon Display",Georgia,serif;font-size:clamp(30px,3vw,43px);font-weight:400;line-height:1.08;margin:-7px 0 -8px}
+.customer-onboarding-card>p{color:#667874;font-size:14px;line-height:1.7;margin:0 0 3px}
+.customer-onboarding-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.customer-onboarding-fields label{font-size:13px;font-weight:700;color:#33443e;min-width:0;gap:7px}
+.customer-onboarding-full{grid-column:1/-1}
+.customer-onboarding-fields input{font-weight:400;border:1px solid #cbd6d0;border-radius:10px;background:#fcfdfc;min-width:0;width:100%;font-size:14px;min-height:46px}
+.customer-onboarding-fields input[readonly]{background:#eef1ed;color:#63746d;cursor:not-allowed}
+.customer-onboarding-fields small{font-size:11px;font-weight:400;color:#697d73}
+.customer-optional{display:inline;color:#758881;font-size:11px;font-weight:400}
+.customer-onboarding-existing{background:#f2f6f3;border:1px solid #dbe6df;border-radius:12px;padding:14px}
+.customer-onboarding-existing p{font-size:12px;color:#446357;line-height:1.75;margin:12px 0 0}
+.customer-onboarding-check{display:flex!important;flex-direction:row!important;gap:11px!important;align-items:flex-start;cursor:pointer;font-size:12px!important;line-height:1.5;font-weight:500!important}
+.customer-onboarding-check input{flex:0 0 17px;appearance:auto;width:17px;height:17px;margin:1px 0 0;accent-color:#1b4e3c;cursor:pointer}
+.customer-confirm{color:#455e52}
+.customer-onboarding-submit{min-height:50px;font-size:14px;justify-content:center;border-radius:12px}
+.customer-onboarding-disclaimer{color:#798680;font-size:11px;line-height:1.7;text-align:center}
+.customer-onboarding-error{color:#a32320;background:#fff0ee;border:1px solid #efc4bf;border-radius:10px;font-size:13px;padding:13px;line-height:1.6}
+@media(max-width:950px){.customer-onboarding-main{grid-template-columns:1fr;max-width:690px;gap:30px}.customer-onboarding-hero h1{font-size:48px}.customer-onboarding-benefits{display:none}.customer-onboarding-steps{margin:22px 0 0}}
+@media(max-width:540px){.customer-onboarding-top{padding:20px}.customer-onboarding-main{padding:24px 15px 50px}.customer-onboarding-hero{padding:0 8px}.customer-onboarding-hero h1{font-size:40px}.customer-onboarding-hero>p{font-size:14px}.customer-onboarding-card{border-radius:18px;padding:23px 19px}.customer-onboarding-fields{grid-template-columns:1fr}.customer-onboarding-steps{gap:6px}.customer-onboarding-steps>span{font-size:10px;padding:6px 8px}}
+@media(prefers-reduced-motion:reduce){.customer-onboarding-shell *{transition:none!important}}
