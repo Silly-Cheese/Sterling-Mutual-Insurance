@@ -40,9 +40,11 @@ export function MedicalClaimPortal({user,customerAccount=null,providerAccount=nu
   async function refresh(){
     setLoading(true);
     try{
-      const field=isProvider?"submitterUid":"customerId";
-      const uid=isProvider?user.uid:customerAccount?.customerId;
-      const snap=await getDocs(query(collection(db,"medicalClaimRequests"),where(field,"==",uid)));
+      // A submitter can list only their own requests, independent of policy matching.
+      // This matches Firestore's query security rules without broad customer searches.
+      const snap=await getDocs(query(
+        collection(db,"medicalClaimRequests"),where("submitterUid","==",user.uid)
+      ));
       setRequests(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)));
       setError("");
     }catch(e){setError("Unable to load medical requests: "+(e?.message||"Access denied"))}
