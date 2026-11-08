@@ -5,6 +5,7 @@ This is a **Firebase Authentication + Firestore Rules + client-side** workflow. 
 ## What is implemented
 
 - Sterling customer portal: **Medical Payouts** tab, with policy selection, provider, service date, invoice number, category, amount, details, status history and replies to requests for information.
+- Customer onboarding: new customers create their **own** prospect customer record immediately after signup, without staff linking. A dedicated form collects their name and optional phone. Existing customer records or policies are never claimed automatically.
 - Sterling provider portal: new registrants select **Medical provider**, enter the practice name, and remain blocked until staff verifies and approves them.
 - Sterling Company > Staff: approve/suspend provider access; customer registration can be linked to an existing customer record from Customers > Open customer account.
 - Sterling staff: **Medical Payouts** intake queue; check provider/patient/policy, ask for information, decline, or convert to an ordinary claim. The ordinary Claims engine handles coverage, investigation, approval and simulated settlement/payment.
@@ -18,6 +19,7 @@ Sterling Mutual and Northstar use different Firebase projects and Auth user stor
 - Northstar sends **no patient name, clinical details, chart notes, tokens, or login credentials** through its link.
 - A provider must have a **Sterling Auth account** and a staff-approved `providerAccounts/{uid}` record to submit claims.
 - Customer submissions require ownership of their Sterling customer record. Policy IDs, when supplied by a customer, must belong to that record.
+- Self-registration uses a single Firestore batch for `customers/{newId}`, `customerAccounts/{uid}` and `accounts/{uid}`. Rules validate the Auth UID, account type, pending status, fixed prospect status and matching linked records with `getAfter()`. Customers can later edit only their contact phone.
 - Provider submissions are not automatically linked to a customer or policy; Sterling staff must verify the match. Provider-supplied policy numbers and amounts are untrusted.
 - Portal users cannot create official `claims`, `claimPayments`, coverage decisions, or settlement records. They can only create schema-validated `medicalClaimRequests` and append replies when staff requests more information.
 - Staff conversion uses a Firestore transaction that creates the official claim and marks the intake request converted together. Rules verify the resulting claim link.
@@ -70,6 +72,8 @@ This is the expected Firebase Hosting URL for the Sterling project. If the live 
 6. Sign in as Sterling claims staff and open **Medical Payouts**. Ask for more information and have the submitter reply; check that the response appears in staff review.
 7. Match an eligible policy, create the official claim, then verify the intake record says **converted** and that the ordinary Claims page contains the new medical claim.
 8. Make any simulated coverage decision/payment through Sterling's existing Claims workflow. Reconcile Northstar manually as needed.
-9. Repeat as a customer with a linked `customerAccounts` record; verify another customer and an unapproved provider cannot read or modify the request.
+9. Register as **Customer** and complete the self-service profile form. Confirm that the customer portal opens immediately, without an email-verification link or staff linking.
+10. Submit a medical request and confirm that its history loads by the signed-in `submitterUid` without permissions errors.
+11. Confirm that a customer cannot create a second linked customer with the same account or access a different customer's policies or records.
 
 **Deploy note:** code changes in GitHub do not imply Firebase rules or Hosting have been deployed. The deployment commands above must complete before you can test the live portal.
