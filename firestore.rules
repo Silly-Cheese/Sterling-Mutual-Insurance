@@ -18,6 +18,101 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/customers/$(customerId)).data.authUid == request.auth.uid;
     }
 
+
+    // Customer and provider medical intake is strictly separate from claim settlement.
+    // The Northstar app uses another Firebase project; no cross-project reads are trusted.
+    function isApprovedMedicalProvider() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/providerAccounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/providerAccounts/$(request.auth.uid)).data.authUid == request.auth.uid
+        && get(/databases/$(database)/documents/providerAccounts/$(request.auth.uid)).data.status == "active";
+    }
+
+    function medicalRequestCreateValid() {
+      let d = request.resource.data;
+      return signedIn()
+        && d.keys().hasOnly([
+          "schemaVersion","submitterUid","submitterRole","customerId","policyId","policyNumber",
+          "patientName","providerName","invoiceNumber","sourceInvoiceId","serviceDate",
+          "expenseCategory","amount","notes","sourceSystem","status","createdAt","updatedAt"
+        ])
+        && d.keys().hasAll([
+          "schemaVersion","submitterUid","submitterRole","customerId","policyId","policyNumber",
+          "patientName","providerName","invoiceNumber","sourceInvoiceId","serviceDate",
+          "expenseCategory","amount","notes","sourceSystem","status","createdAt","updatedAt"
+        ])
+        && d.schemaVersion == 1
+        && d.submitterUid == request.auth.uid
+        && d.submitterRole in ["customer","provider"]
+        && d.status == "submitted"
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.customerId is string && d.policyId is string && d.policyNumber is string && d.policyNumber.size() <= 80
+        && d.patientName is string && d.patientName.size() >= 2 && d.patientName.size() <= 160
+        && d.providerName is string && d.providerName.size() >= 2 && d.providerName.size() <= 160
+        && d.invoiceNumber is string && d.invoiceNumber.size() >= 1 && d.invoiceNumber.size() <= 100
+        && d.sourceInvoiceId is string && d.sourceInvoiceId.size() <= 100
+        && d.serviceDate is string && d.serviceDate.size() == 10
+        && d.expenseCategory in ["hospital","physician","medication","imaging","procedure","therapy","other"]
+        && d.amount is number && d.amount > 0 && d.amount <= 1000000
+        && d.notes is string && d.notes.size() <= 1000
+        && d.sourceSystem in ["northstar","manual"]
+        && (
+          (
+            d.submitterRole == "customer"
+            && ownsCustomer(d.customerId)
+            && (
+              (d.policyId == "" && d.policyNumber == "")
+              || (
+                exists(/databases/$(database)/documents/policies/$(d.policyId))
+                && get(/databases/$(database)/documents/policies/$(d.policyId)).data.customerId == d.customerId
+                && get(/databases/$(database)/documents/policies/$(d.policyId)).data.policyNumber == d.policyNumber
+              )
+            )
+          )
+          || (
+            d.submitterRole == "provider"
+            && isApprovedMedicalProvider()
+            && d.customerId == ""
+            && d.policyId == ""
+            && d.providerName == get(/databases/$(database)/documents/providerAccounts/$(request.auth.uid)).data.organizationName
+          )
+        );
+    }
+
+    function medicalReviewUpdateValid(requestId) {
+      let d = request.resource.data;
+      return (
+          hasPermission("claim.update")
+          || hasPermission("claim.createForCustomer")
+          || hasPermission("claim.decide")
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status","customerId","policyId","policyNumber","claimId","claimNumber",
+          "reviewNote","reviewedBy","reviewedAt","updatedAt"
+        ])
+        && d.status in ["needs_info","declined","converted"]
+        && resource.data.status in ["submitted","needs_info"]
+        && d.reviewedBy == request.auth.uid
+        && d.reviewedAt == request.time
+        && d.updatedAt == request.time
+        && d.get("reviewNote","") is string
+        && d.get("reviewNote","").size() <= 1000
+        && (
+          d.status != "converted"
+          || (
+            hasPermission("claim.createForCustomer")
+            && d.claimId is string && d.claimId.size() > 0
+            && d.claimNumber is string && d.claimNumber.size() > 0
+            && d.customerId is string && d.customerId.size() > 0
+            && d.policyId is string && d.policyId.size() > 0
+            && getAfter(/databases/$(database)/documents/claims/$(d.claimId)).data.medicalRequestId == requestId
+            && getAfter(/databases/$(database)/documents/claims/$(d.claimId)).data.customerId == d.customerId
+            && getAfter(/databases/$(database)/documents/claims/$(d.claimId)).data.policyId == d.policyId
+          )
+        );
+    }
+
     function bootstrapPath(){ return /databases/$(database)/documents/system/bootstrap; }
     function bootstrapStaffPath(){ return /databases/$(database)/documents/staff/$(request.auth.uid); }
     function isBootstrapCreateForSelf(){
@@ -98,6 +193,47 @@ service cloud.firestore {
                     && request.resource.data.authUid == uid
                     && request.resource.data.status == "active";
       allow update: if hasPermission("customer.account.manage");
+      allow delete: if false;
+    }
+
+
+    match /providerAccounts/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid)
+                  || hasPermission("staff.manage");
+      allow create: if hasPermission("staff.manage")
+                    && request.resource.data.authUid == uid
+                    && exists(/databases/$(database)/documents/accounts/$(uid))
+                    && get(/databases/$(database)/documents/accounts/$(uid)).data.accountType == "provider"
+                    && request.resource.data.status == "active"
+                    && request.resource.data.organizationName is string
+                    && request.resource.data.organizationName.size() >= 2
+                    && request.resource.data.organizationName.size() <= 160;
+      allow update: if hasPermission("staff.manage")
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status","updatedAt","updatedBy"])
+                    && request.resource.data.authUid == uid
+                    && request.resource.data.status in ["active","suspended"];
+      allow delete: if false;
+    }
+
+    // Public users can only create immutable intake records, never official claims,
+    // payment records, settlement values or coverage decisions.
+    match /medicalClaimRequests/{requestId} {
+      allow read: if hasPermission("claim.read")
+                  || hasPermission("claim.createForCustomer")
+                  || (
+                    signedIn()
+                    && resource.data.submitterUid == request.auth.uid
+                    && (
+                      (resource.data.submitterRole == "provider" && isApprovedMedicalProvider())
+                      || (resource.data.submitterRole == "customer" && ownsCustomer(resource.data.customerId))
+                    )
+                  )
+                  || (
+                    resource.data.customerId != ""
+                    && ownsCustomer(resource.data.customerId)
+                  );
+      allow create: if medicalRequestCreateValid();
+      allow update: if medicalReviewUpdateValid(requestId);
       allow delete: if false;
     }
 
