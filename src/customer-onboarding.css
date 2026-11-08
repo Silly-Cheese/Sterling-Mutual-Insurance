@@ -43,3 +43,16 @@
 @media(max-width:950px){.customer-onboarding-main{grid-template-columns:1fr;max-width:690px;gap:30px}.customer-onboarding-hero h1{font-size:48px}.customer-onboarding-benefits{display:none}.customer-onboarding-steps{margin:22px 0 0}}
 @media(max-width:540px){.customer-onboarding-top{padding:20px}.customer-onboarding-main{padding:24px 15px 50px}.customer-onboarding-hero{padding:0 8px}.customer-onboarding-hero h1{font-size:40px}.customer-onboarding-hero>p{font-size:14px}.customer-onboarding-card{border-radius:18px;padding:23px 19px}.customer-onboarding-fields{grid-template-columns:1fr}.customer-onboarding-steps{gap:6px}.customer-onboarding-steps>span{font-size:10px;padding:6px 8px}}
 @media(prefers-reduced-motion:reduce){.customer-onboarding-shell *{transition:none!important}}
+
+/* Self-service profile management after onboarding */
+.customer-profile-panel,.customer-profile-info{display:grid;gap:16px;align-content:start}
+.customer-profile-panel h2{font-family:"Libre Caslon Display",Georgia,serif;font-size:33px;font-weight:400;margin:0}
+.customer-profile-panel p,.customer-profile-info p{color:var(--muted);line-height:1.7;margin:0}
+.customer-profile-fields{display:grid;gap:14px}
+.customer-profile-fields label{display:grid;gap:7px}
+.customer-profile-fields input{width:100%;border-radius:10px}
+.customer-profile-fields input[readonly]{background:#edf1ee;color:#58685e}
+.customer-profile-info>svg{color:#285c48}
+.customer-profile-info h3{margin:0;font-size:21px}
+.customer-profile-info .record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:6px}
+@media(max-width:550px){.customer-profile-info .record-summary{grid-template-columns:1fr}}
